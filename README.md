@@ -2,9 +2,15 @@
 
 Tool gộp bảng chấm công và bảng lương của nhiều hợp đồng về **một file Excel cấu trúc chuẩn**. Mỗi hợp đồng có thể dùng một biểu mẫu khác nhau. Sau khi gộp, tool đối chiếu lại với file gốc và cảnh báo khi số liệu sai hoặc đáng nghi.
 
-Tool chạy trên máy của bạn và mở giao diện trong trình duyệt. Không cần internet, và file không bị gửi đi đâu.
+## Dùng ngay trên web, không cần cài
 
-## Cài và chạy
+Mở **<https://rogerlinh.github.io/dong-bo-cham-cong-luong/>** rồi kéo thả file vào. Tool chạy hẳn trong trình duyệt bằng [Pyodide](https://pyodide.org) (Python dạng WebAssembly), nên file của bạn không tải lên máy chủ nào.
+
+- Lần đầu mở, trang tải bộ xử lý khoảng 20 MB. Những lần sau trình duyệt đã lưu sẵn nên nhanh hơn.
+- Đồng bộ 5 file mẫu mất khoảng 30–60 giây, chậm hơn bản cài trên máy.
+- Dùng Chrome, Edge hoặc Firefox bản mới.
+
+## Cài và chạy trên máy (không cần internet)
 
 1. Cài **Python 3.10 trở lên** từ <https://www.python.org/downloads/>. Trên Windows, nhớ tick **Add python.exe to PATH** khi cài.
 2. Tải source về: bấm **Code → Download ZIP** rồi giải nén, hoặc dùng `git clone`.
