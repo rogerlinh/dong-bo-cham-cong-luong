@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đồng bộ chấm công lương</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap">
+<style>
+:root{
+  --giay:#F2F4F1; --giay-2:#E7EBE6; --ke:#C9D1CB; --muc:#1D2A31; --muc-nhat:#5B6A70;
+  --xanh:#0E6B58; --xanh-nhat:#DCEDE7; --vang:#9A6400; --vang-nhat:#F6EBD3; --do:#A3341F; --do-nhat:#F7E0D9; --trang:#FFFFFF;
+}
+*{box-sizing:border-box}
+html{background:var(--giay)}
+body{margin:0;color:var(--muc);font:15px/1.55 "Be Vietnam Pro",system-ui,"Segoe UI",sans-serif;
+  font-variant-numeric:tabular-nums;
+  background:
+    repeating-linear-gradient(to bottom,transparent 0 31px,rgba(14,107,88,.06) 31px 32px),
+    var(--giay);}
+.khung{max-width:1160px;margin:0 auto;padding:40px 24px 80px}
+header{display:flex;gap:24px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;
+  border-bottom:2px solid var(--muc);padding-bottom:18px;margin-bottom:32px}
+h1{font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-.02em;margin:0}
+.phu-de{margin:8px 0 0;color:var(--muc-nhat);max-width:60ch}
+h2{font-size:19px;font-weight:700;margin:0 0 14px}
+button,.nut{font:inherit;font-weight:600;border-radius:6px;border:1.5px solid var(--muc);background:var(--trang);
+  color:var(--muc);padding:9px 16px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px}
+button:hover,.nut:hover{background:var(--giay-2)}
+button:focus-visible,.nut:focus-visible,input:focus-visible+label,summary:focus-visible{outline:3px solid var(--xanh);outline-offset:2px}
+button.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff;padding:12px 26px;font-size:16px}
+button.chinh:hover{background:#0A5847}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.nhe{border-color:transparent;background:transparent;color:var(--muc-nhat);padding:6px 10px}
+button.nhe:hover{color:var(--do);background:transparent}
+
+/* vùng file */
+.tha{border:2px dashed var(--ke);border-radius:10px;background:rgba(255,255,255,.6);padding:22px;
+  display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;transition:border-color .15s,background .15s}
+.tha.dang-keo{border-color:var(--xanh);background:var(--xanh-nhat)}
+.tha p{margin:0;color:var(--muc-nhat)}
+.tha strong{color:var(--muc)}
+.ds-file{list-style:none;margin:14px 0 0;padding:0;background:var(--trang);border:1px solid var(--ke);border-radius:10px;overflow:hidden}
+.ds-file li{display:grid;grid-template-columns:86px 1fr auto auto auto;gap:14px;align-items:center;padding:11px 14px;border-top:1px solid var(--giay-2)}
+.ds-file li:first-child{border-top:0}
+.ma-hd{font-weight:800;font-size:15px}
+.ten-file{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muc-nhat);font-size:14px}
+.the{font-size:13px;font-weight:600;padding:2px 9px;border-radius:999px;background:var(--xanh-nhat);color:var(--xanh);white-space:nowrap}
+.the.loi{background:var(--vang-nhat);color:var(--vang)}
+.nho{font-size:13px;color:var(--muc-nhat);white-space:nowrap}
+.trong{padding:18px 14px;color:var(--muc-nhat)}
+.hang-chay{display:flex;justify-content:space-between;align-items:center;gap:16px 24px;flex-wrap:wrap;margin:22px 0 44px}
+.hang-chay .chon{flex:none}
+.chon{display:flex;gap:10px;align-items:center}
+.chon input{width:18px;height:18px;accent-color:var(--xanh)}
+.tien-trinh{display:none;align-items:center;gap:12px;color:var(--muc-nhat);flex:1;min-width:0;justify-content:flex-end}
+.tien-trinh span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vong{flex:none}
+.tien-trinh.hien{display:flex}
+.vong{width:18px;height:18px;border:3px solid var(--ke);border-top-color:var(--xanh);border-radius:50%;animation:quay 0.9s linear infinite}
+@keyframes quay{to{transform:rotate(360deg)}}
+
+/* kết quả */
+#ket-qua{display:none}
+#ket-qua.hien{display:block}
+.tong-ket{display:flex;gap:36px;flex-wrap:wrap;margin:0 0 20px;padding:0}
+.tong-ket div{min-width:140px}
+.tong-ket dt{font-size:13px;color:var(--muc-nhat)}
+.tong-ket dd{margin:2px 0 0;font-size:24px;font-weight:700;letter-spacing:-.01em}
+.bang{background:var(--trang);border:1px solid var(--ke);border-radius:10px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th{font-size:13px;font-weight:600;color:var(--muc-nhat);text-align:right;padding:12px;border-bottom:1.5px solid var(--muc);vertical-align:bottom}
+th .nho{white-space:normal}
+th:first-child,th:nth-child(2){text-align:left;white-space:nowrap}
+td{padding:14px 12px;border-bottom:1px solid var(--giay-2);text-align:right;vertical-align:middle}
+td:first-child,td:nth-child(2){text-align:left}
+tr.hd:last-of-type td{border-bottom:0}
+.hd-ten{font-weight:800;font-size:17px}
+.hd-mau{font-size:12.5px;color:var(--muc-nhat);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.so-goc{font-size:13px}
+.so{font-weight:600}
+.so-goc{color:var(--muc-nhat)}
+/* con dấu đối chiếu */
+.dau{display:inline-block;transform:rotate(-7deg);border:3px double currentColor;border-radius:6px;
+  padding:3px 10px 2px;font-weight:800;font-size:15px;letter-spacing:.06em;line-height:1.2;text-align:center}
+.dau small{display:block;font-size:10px;letter-spacing:0;font-weight:600}
+.dau.khop{color:var(--xanh)}
+.dau.lech{color:var(--do)}
+.dau.moi{animation:dong-dau .35s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes dong-dau{from{transform:rotate(-7deg) scale(1.9);opacity:0}to{transform:rotate(-7deg) scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.dau.moi{animation:none}.vong{animation-duration:3s}}
+/* cảnh báo theo mức */
+.mo-cb{display:inline-flex;flex-direction:column;align-items:flex-end;gap:3px;background:none;border:0;padding:4px;cursor:pointer;font:inherit}
+.mo-cb:hover .muc{text-decoration:underline;text-underline-offset:3px}
+.mo-cb.khong{color:var(--muc-nhat);cursor:default;font-size:13px}
+.muc{font-size:12.5px;font-weight:700;padding:1px 8px;border-radius:4px;white-space:nowrap;border-left:3px solid currentColor}
+.muc.loi{color:var(--do);background:var(--do-nhat)}
+.muc.nghi{color:var(--vang);background:var(--vang-nhat)}
+.muc.luu{color:var(--muc-nhat);background:var(--giay-2)}
+tr.cb td{background:#FBFAF6;text-align:left;padding:14px 16px 18px;border-bottom:1.5px solid var(--ke)}
+.loc{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.loc button{font-size:13px;padding:4px 12px;border-radius:999px;border-width:1px}
+.loc button[aria-pressed="true"]{background:var(--muc);color:#fff;border-color:var(--muc)}
+.nhom{margin:0 0 14px}
+.nhom h3{font-size:14px;margin:0 0 6px;display:flex;gap:8px;align-items:baseline}
+.nhom h3 .nho{font-weight:400}
+.nhom ul{list-style:none;margin:0;padding:0;border-left:3px solid var(--ke)}
+.nhom.loi ul{border-color:var(--do)} .nhom.nghi ul{border-color:var(--vang)}
+.nhom li{padding:6px 0 6px 12px;font-size:14px;border-top:1px solid var(--giay-2)}
+.nhom li:first-child{border-top:0}
+.nhom .loai{font-weight:600}
+.nhom .nv{color:var(--muc-nhat);font-size:13px}
+.nhom .nd{display:block;color:var(--muc);overflow-wrap:anywhere}
+.canh-lon{margin:0 0 18px;padding:12px 16px;border-radius:8px;background:var(--do-nhat);color:#6E1F10;border-left:4px solid var(--do)}
+.canh-lon b{font-weight:700}
+.tai{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0}
+.tai .nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}
+details{margin-top:28px}
+summary{cursor:pointer;color:var(--muc-nhat);font-weight:600}
+pre{background:var(--trang);border:1px solid var(--ke);border-radius:8px;padding:14px;font:12.5px/1.5 Consolas,monospace;
+  max-height:260px;overflow:auto;white-space:pre-wrap}
+.thong-bao{display:none;margin:0 0 24px;padding:12px 16px;border-radius:8px;background:var(--vang-nhat);color:#5E3D00;border-left:4px solid var(--vang)}
+.thong-bao.hien{display:block}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.chu-thich{font-size:13px;color:var(--muc-nhat);margin:10px 0 0}
+@media (max-width:640px){
+  .khung{padding:24px 16px 60px}
+  h1{font-size:27px}
+  .ds-file li{grid-template-columns:1fr auto auto;gap:4px 10px}
+  .ds-file .ten-file{grid-column:1/-1;order:3}
+  .ds-file .nho{display:none}
+}
+</style>
+</head>
+<body>
+<div class="khung">
+  <header>
+    <div>
+      <h1>Đồng bộ chấm công và lương</h1>
+      <p class="phu-de">Gộp bảng công, bảng lương của từng hợp đồng về một file Excel theo cấu trúc chuẩn, rồi đối chiếu lại với file gốc.</p>
+    </div>
+    <button id="mo-thu-muc" type="button">Mở thư mục kết quả</button>
+  </header>
+
+  <div class="thong-bao" id="thong-bao" role="alert"></div>
+
+  <section aria-labelledby="t-file">
+    <h2 id="t-file">File nguồn</h2>
+    <div class="tha" id="tha">
+      <p><strong>Kéo thả file .xlsx vào đây</strong>, mỗi file là bảng công/lương của một hợp đồng. Biểu mẫu được nhận diện tự động.</p>
+      <div>
+        <input type="file" id="chon-file" accept=".xlsx" multiple hidden>
+        <button type="button" id="nut-chon">Chọn file</button>
+        <button type="button" class="nhe" id="nut-xoa-het">Bỏ tất cả</button>
+      </div>
+    </div>
+    <ul class="ds-file" id="ds-file" aria-live="polite"></ul>
+  </section>
+
+  <div class="hang-chay">
+    <div class="chon">
+      <input type="checkbox" id="tach-rieng">
+      <label for="tach-rieng">Xuất thêm mỗi hợp đồng một file riêng</label>
+    </div>
+    <div class="tien-trinh" id="tien-trinh" aria-live="polite"><span class="vong" aria-hidden="true"></span><span id="dong-log">Đang đồng bộ…</span></div>
+    <button class="chinh" id="nut-chay" type="button">Đồng bộ</button>
+  </div>
+
+  <section id="ket-qua" aria-labelledby="t-kq">
+    <h2 id="t-kq">Kết quả đối chiếu</h2>
+    <dl class="tong-ket" id="tong-ket"></dl>
+    <div class="canh-lon" id="canh-lon" role="status" hidden></div>
+    <div class="bang">
+      <table>
+        <thead><tr>
+          <th scope="col">Hợp đồng</th><th scope="col">Kỳ công</th><th scope="col">Nhân viên</th>
+          <th scope="col">Tổng lương</th><th scope="col">Thực nhận<div class="nho">file tổng / file gốc</div></th>
+          <th scope="col">Doanh thu<div class="nho">file tổng / file gốc</div></th><th scope="col">Cảnh báo</th><th scope="col"><span class="vh">Đối chiếu</span></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="chu-thich">Con dấu "Khớp" nghĩa là thực nhận tính lại từ các cột trong file tổng bằng đúng thực nhận của file gốc, xét từng nhân viên.
+      Cảnh báo chia 3 mức: <b>Lỗi</b> là số liệu sai chắc chắn, cần sửa file gốc; <b>Nghi ngờ</b> là bất thường cần người xem lại; <b>Lưu ý</b> chỉ để biết.
+      Danh sách đầy đủ nằm ở sheet <i>kiem_tra</i> của file tổng hợp, và cột cuối sheet <i>bang_luong</i> đánh dấu từng nhân viên.</p>
+    <div class="tai" id="tai"></div>
+    <details>
+      <summary>Nhật ký chạy</summary>
+      <pre id="log"></pre>
+    </details>
+  </section>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const so = v => (v === null || v === undefined) ? "–" : Math.round(v).toLocaleString("vi-VN");
+const mb = b => (b / 1048576).toLocaleString("vi-VN", {maximumFractionDigits: 1}) + " MB";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function baoLoi(msg){ const t=$("#thong-bao"); t.textContent=msg; t.classList.toggle("hien", !!msg); }
+
+async function api(url, body){
+  const r = await fetch(url, body === undefined ? {} : {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.loi || "Lỗi máy chủ");
+  return j;
+}
+
+async function veFile(){
+  const ds = await api("/api/files");
+  const ul = $("#ds-file");
+  if(!ds.length){ ul.innerHTML = '<li class="trong">Chưa có file nào. Kéo thả hoặc bấm "Chọn file" để thêm.</li>'; }
+  else ul.innerHTML = ds.map(f => `
+    <li>
+      <span class="ma-hd">${esc(f.hop_dong || "")}</span>
+      <span class="ten-file" title="${esc(f.ten)}">${esc(f.ten)}</span>
+      ${f.loi ? `<span class="the loi" title="${esc(f.loi)}">Không đọc được</span>` : `<span class="the">Mẫu ${esc(f.mau)}${f.ky ? ", " + esc(f.ky) : ""}</span>`}
+      <span class="nho">${mb(f.kich_thuoc)}</span>
+      <button class="nhe" type="button" data-xoa="${esc(f.ten)}" aria-label="Bỏ ${esc(f.ten)}">Bỏ</button>
+    </li>`).join("");
+  const doc = ds.filter(f => f.mau && !f.loi).length;
+  $("#nut-chay").textContent = doc ? `Đồng bộ ${doc} file` : "Đồng bộ";
+  $("#nut-chay").disabled = !doc;
+}
+
+async function taiLen(fileList){
+  baoLoi("");
+  for(const f of fileList){
+    if(!f.name.toLowerCase().endsWith(".xlsx")){ baoLoi(`"${f.name}" không phải file .xlsx nên đã bỏ qua.`); continue; }
+    $("#dong-log").textContent = `Đang tải lên ${f.name}…`; $("#tien-trinh").classList.add("hien");
+    const r = await fetch("/api/upload", {method:"POST", headers:{"X-Ten-File": encodeURIComponent(f.name)}, body:f});
+    if(!r.ok){ baoLoi((await r.json()).loi); }
+  }
+  $("#tien-trinh").classList.remove("hien");
+  veFile();
+}
+
+const tha = $("#tha");
+["dragenter","dragover"].forEach(e => tha.addEventListener(e, ev => { ev.preventDefault(); tha.classList.add("dang-keo"); }));
+["dragleave","drop"].forEach(e => tha.addEventListener(e, ev => { ev.preventDefault(); tha.classList.remove("dang-keo"); }));
+tha.addEventListener("drop", ev => taiLen(ev.dataTransfer.files));
+$("#nut-chon").onclick = () => $("#chon-file").click();
+$("#chon-file").onchange = ev => { taiLen(ev.target.files); ev.target.value = ""; };
+$("#nut-xoa-het").onclick = async () => { await api("/api/xoa_het", {}); veFile(); };
+$("#ds-file").onclick = async ev => { const t = ev.target.dataset.xoa; if(t){ await api("/api/xoa", {ten:t}); veFile(); } };
+$("#mo-thu-muc").onclick = () => api("/api/mo_thu_muc", {}).catch(e => baoLoi(e.message));
+
+$("#nut-chay").onclick = async () => {
+  baoLoi("");
+  try{ await api("/api/chay", {tach_rieng: $("#tach-rieng").checked}); }
+  catch(e){ return baoLoi(e.message); }
+  $("#nut-chay").disabled = true; $("#tien-trinh").classList.add("hien");
+  const t = setInterval(async () => {
+    const s = await api("/api/status");
+    const cuoi = s.log.filter(l => l.trim()).slice(-1)[0] || "Đang đồng bộ…";
+    $("#dong-log").textContent = cuoi.trim().slice(0, 90);
+    $("#log").textContent = s.log.join("\n");
+    if(!s.dang_chay){
+      clearInterval(t); $("#tien-trinh").classList.remove("hien"); $("#nut-chay").disabled = false;
+      if(s.loi) baoLoi("Đồng bộ không thành công: " + s.loi);
+      if(s.ket_qua) veKetQua(s.ket_qua);
+    }
+  }, 700);
+};
+
+const MUC = [["Lỗi", "loi", "lỗi"], ["Nghi ngờ", "nghi", "nghi ngờ"], ["Lưu ý", "luu", "lưu ý"]];
+const demMuc = x => x.dem || {loi: 0, nghi_ngo: 0, luu_y: 0};
+const chipMuc = d => [[d.loi, "loi", "lỗi"], [d.nghi_ngo, "nghi", "nghi ngờ"], [d.luu_y, "luu", "lưu ý"]]
+  .filter(t => t[0]).map(t => `<span class="muc ${t[1]}">${t[0]} ${t[2]}</span>`).join("");
+
+function veCanhBao(ds, loc){
+  const nut = [["", "Tất cả", ds.length], ...MUC.map(m => [m[0], m[0], ds.filter(c => c.muc === m[0]).length])]
+    .filter(t => t[2]).map(t => `<button type="button" data-loc="${esc(t[0])}" aria-pressed="${t[0] === loc}">${esc(t[1])} (${t[2]})</button>`).join("");
+  const nhom = MUC.filter(m => !loc || m[0] === loc).map(m => {
+    const ds_m = ds.filter(c => c.muc === m[0]);
+    if(!ds_m.length) return "";
+    return `<div class="nhom ${m[1]}"><h3><span class="muc ${m[1]}">${m[0]}</span><span class="nho">${ds_m.length} mục</span></h3><ul>${ds_m.map(c =>
+      `<li><span class="loai">${esc(c.loai)}</span>${c.ma ? ` <span class="nv">${esc(c.ma)}${c.ten ? " – " + esc(c.ten) : ""}</span>` : ""}<span class="nd">${esc(c.noi_dung)}</span></li>`).join("")}</ul></div>`;
+  }).join("");
+  return `<div class="loc" role="group" aria-label="Lọc theo mức">${nut}</div>${nhom}`;
+}
+
+function veKetQua(kq, cuon = true){
+  const hd = kq.hop_dong;
+  window._kq = kq;
+  const tong = k => hd.reduce((a, x) => a + (x[k] || 0), 0);
+  const tongLoi = hd.reduce((a, x) => a + demMuc(x).loi, 0);
+  const tongNghi = hd.reduce((a, x) => a + demMuc(x).nghi_ngo, 0);
+  const cl = $("#canh-lon");
+  cl.hidden = !tongLoi;
+  if(tongLoi){
+    const ten = hd.filter(x => demMuc(x).loi).map(x => x.hop_dong).join(", ");
+    cl.innerHTML = `<b>Có ${tongLoi} lỗi cần sửa trước khi dùng file tổng hợp</b> (hợp đồng ${esc(ten)}). Bấm vào ô cảnh báo của hợp đồng để xem chi tiết.`;
+  }
+  $("#tong-ket").innerHTML = `
+    <div><dt>Hợp đồng</dt><dd>${hd.length}</dd></div>
+    <div><dt>Nhân viên</dt><dd>${so(tong("so_nv"))}</dd></div>
+    <div><dt>Tổng lương</dt><dd>${so(tong("tong_luong"))}</dd></div>
+    <div><dt>Thực nhận</dt><dd>${so(tong("thuc_nhan"))}</dd></div>
+    <div><dt>Lỗi / nghi ngờ</dt><dd><span style="color:${tongLoi ? "var(--do)" : "inherit"}">${tongLoi}</span> / <span style="color:${tongNghi ? "var(--vang)" : "inherit"}">${tongNghi}</span></dd></div>`;
+  $("#tbody").innerHTML = hd.map((x, i) => {
+    const khop = Math.abs(x.lech) <= 1 && x.so_nv_lech === 0;
+    const cb = x.canh_bao.length;
+    const dtGoc = x.doanh_thu_goc != null ? `<div class="so-goc" title="Theo file gốc">${so(x.doanh_thu_goc)}</div>` : '<div class="so-goc" title="File gốc không có bảng kê">không có bảng kê</div>';
+    return `
+    <tr class="hd">
+      <td><div class="hd-ten">${esc(x.hop_dong)}</div><div class="hd-mau" title="${esc(x.mau)}">${esc(x.mau.replace(/ \(.*/, ""))}</div></td>
+      <td>${esc(x.ky)}<div class="nho">${esc(x.tu)} – ${esc(x.den)}</div></td>
+      <td class="so">${so(x.so_nv)}</td>
+      <td class="so">${so(x.tong_luong)}</td>
+      <td><div class="so">${so(x.thuc_nhan)}</div><div class="so-goc">${so(x.thuc_nhan_goc)}</div></td>
+      <td><div>${so(x.doanh_thu)}</div>${dtGoc}</td>
+      <td>${cb ? `<button type="button" class="mo-cb" aria-expanded="false" aria-controls="cb-${i}" data-cb="${i}" title="Xem ${cb} cảnh báo">${chipMuc(demMuc(x))}</button>` : '<span class="mo-cb khong">Không có</span>'}</td>
+      <td><span class="dau moi ${khop ? "khop" : "lech"}" style="animation-delay:${i * 120}ms">${khop ? "KHỚP" : "LỆCH"}<small>${khop ? "file gốc" : so(x.lech)}</small></span></td>
+    </tr>
+    <tr class="cb" id="cb-${i}" hidden><td colspan="8">${veCanhBao(x.canh_bao, "")}</td></tr>`;
+  }).join("");
+  $("#tai").innerHTML = kq.files.map((f, i) =>
+    `<a class="nut ${i === 0 ? "chinh" : ""}" href="/tai?f=${encodeURIComponent(f)}">${i === 0 ? "Tải file tổng hợp" : "Tải " + esc(f.replace(/^Tong_hop_cham_cong_luong_\d+_\d+_?/, "").replace(".xlsx", "") || f)}</a>`).join("");
+  $("#ket-qua").classList.add("hien");
+  if(cuon) $("#ket-qua").scrollIntoView({behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+}
+
+$("#tbody").addEventListener("click", ev => {
+  const loc = ev.target.closest("[data-loc]");
+  if(loc){
+    const td = loc.closest("td"), i = +td.parentElement.id.slice(3);
+    td.innerHTML = veCanhBao(window._kq.hop_dong[i].canh_bao, loc.dataset.loc);
+    return;
+  }
+  const nut = ev.target.closest("[data-cb]"); if(!nut) return;
+  const row = $("#cb-" + nut.dataset.cb); row.hidden = !row.hidden; nut.setAttribute("aria-expanded", String(!row.hidden));
+});
+
+veFile();
+// mở lại trang: hiện lại kết quả lần đồng bộ gần nhất
+api("/api/status").then(s => { if(s.ket_qua){ $("#log").textContent = s.log.join("\n"); veKetQua(s.ket_qua, false); } });
+</script>
+</body>
+</html>

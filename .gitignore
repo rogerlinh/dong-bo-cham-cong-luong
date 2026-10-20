@@ -1,0 +1,12 @@
+# dữ liệu bảng lương và kết quả: không đưa lên git
+*.xlsx
+*.xls
+*.xlsm
+ket_qua/
+~$*
+
+__pycache__/
+*.pyc
+.claude/
+.venv/
+venv/
