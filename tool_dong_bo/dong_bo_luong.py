@@ -1094,6 +1094,16 @@ def _o(ws, r, c, v, fmt=None, font=F_TH):
     return cell
 
 
+def cot_O(d) -> float:
+    """Cột O 'Phụ cấp khác' của template = phụ cấp khác + lương TC CN/lễ + trả lại tiền giữ."""
+    return d.pc_khac + sum(d.tien.get(c, 0) for c in ("OCN", "OCND", "OL", "OLD")) + d.tra_lai_giu
+
+
+def cot_R(d) -> float:
+    """Cột R 'Trừ đồ' của template = trừ đồ + bảo hiểm + khấu trừ khác."""
+    return d.tru_do + d.bhxh + d.khau_tru_khac
+
+
 def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -1215,8 +1225,9 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
           "Phụ cấp chức vụ", "Phụ cấp chuyên cần", "Phụ cấp thâm niên", "Phụ cấp khác", "Thưởng kỳ", "Tổng lương",
           "Trừ đồ", "Tiền giữ tháng trước", "Ứng lương", "Thực nhận"]
     phu = ["Giờ TC ngày nghỉ/CN", "Giờ TC đêm ngày nghỉ/CN", "Giờ TC ngày lễ", "Giờ TC đêm ngày lễ",
-           "Lương TC ngày nghỉ/CN", "Lương TC đêm ngày nghỉ/CN", "Lương TC ngày lễ", "Lương TC đêm ngày lễ",
-           "Trả lại tiền giữ / hoàn cọc (+)", "Bảo hiểm (trừ)", "Khấu trừ khác (phạt...)",
+           "Lương TC ngày nghỉ/CN (đã gồm trong O)", "Lương TC đêm ngày nghỉ/CN (đã gồm trong O)",
+           "Lương TC ngày lễ (đã gồm trong O)", "Lương TC đêm ngày lễ (đã gồm trong O)",
+           "Trả lại tiền giữ / hoàn cọc (đã gồm trong O)", "Bảo hiểm (đã gồm trong R)", "Khấu trừ khác (đã gồm trong R)",
            "Hợp đồng / Dự án", "Kỳ lương", "Thực nhận (file gốc)", "Chênh lệch",
            "Ngày công", "Ngày vào", "Ngày nghỉ", "Chi tiết khoản gộp (ứng từng đợt, trừ KTX/thẻ/ĐP, phụ cấp...)", "Ghi chú",
            "Cảnh báo (xem sheet kiem_tra)"]
@@ -1231,7 +1242,9 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             _o(ws, 1, c, ds[0].don_gia_luong.get(code) or None, SO)
     else:
         ws.cell(1, 1, "Đơn giá theo dự án: xem DM!X:AC").font = F_GHI
-    ws.cell(1, 22, "Cột bổ sung (template chưa có) – Tổng lương = H:P + Z:AE; Thực nhận = Tổng lương − R − S − T − AF − AG").font = F_GHI
+    ws.cell(1, 22, "Cột bổ sung để xem chi tiết, KHÔNG cộng thêm vào Q/U. Đúng công thức template: Q = SUM(H:P), "
+                   "U = Q − R − S − T. Cột O đã gồm Z:AD (lương TC CN/lễ, trả lại tiền giữ); cột R đã gồm AE:AF "
+                   "(bảo hiểm, khấu trừ khác)").font = F_GHI
     r, stt = 4, 0
     tong = defaultdict(float)
     for da in ds:
@@ -1241,8 +1254,8 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             g, t = d.gio, d.tien
             vals = [stt, d.ma_nv, d.ten, g.get("X", 0), g.get("D", 0), g.get("OT", 0), g.get("OD", 0),
                     t.get("X", 0), t.get("OT", 0), t.get("D", 0), t.get("OD", 0),
-                    d.pc_chuc_vu, d.pc_chuyen_can, d.pc_tham_nien, d.pc_khac, d.thuong, d.tong_luong,
-                    d.tru_do, d.tien_giu, d.ung_luong, d.thuc_nhan,
+                    d.pc_chuc_vu, d.pc_chuyen_can, d.pc_tham_nien, cot_O(d), d.thuong, d.tong_luong,
+                    cot_R(d), d.tien_giu, d.ung_luong, d.thuc_nhan,
                     g.get("OCN", 0), g.get("OCND", 0), g.get("OL", 0), g.get("OLD", 0),
                     t.get("OCN", 0), t.get("OCND", 0), t.get("OL", 0), t.get("OLD", 0),
                     d.tra_lai_giu, d.bhxh, d.khau_tru_khac, da.ma, da.ky, d.thuc_nhan_goc,
@@ -1279,7 +1292,7 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             _o(ws, r, 2, da.ma, font=F_TD); _o(ws, r, 3, f"{len(da.luong)} NV – {da.ky}")
             for j, f in [(4, lambda d: d.gio.get("X", 0)), (5, lambda d: d.gio.get("D", 0)),
                          (6, lambda d: d.gio.get("OT", 0)), (7, lambda d: d.gio.get("OD", 0)),
-                         (17, lambda d: d.tong_luong), (18, lambda d: d.tru_do), (19, lambda d: d.tien_giu),
+                         (17, lambda d: d.tong_luong), (18, cot_R), (19, lambda d: d.tien_giu),
                          (20, lambda d: d.ung_luong), (21, lambda d: d.thuc_nhan)]:
                 _o(ws, r, j, round(sum(f(d) for d in da.luong), 2), GIO if j <= 7 else SO)
             r += 1
