@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Đồng bộ bảng chấm công / bảng lương của nhiều dự án (mỗi bên một biểu mẫu khác nhau)
-về 1 file Excel chuẩn theo cấu trúc template (DM, bang_cham_cong, bang_luong, doanh_thu)
+về 1 file Excel chuẩn theo cấu trúc template (DM, bang_cham_cong_thang, bang_cham_cong_tuan, bang_luong, doanh_thu)
 + 2 sheet phụ: cham_cong_chi_tiet (dạng dọc, có ngày thật) và kiem_tra (đối chiếu).
 
 Cách dùng (dòng lệnh):
@@ -22,6 +22,7 @@ import sys
 import warnings
 import zipfile
 from collections import Counter, defaultdict
+from copy import copy
 from dataclasses import dataclass, field
 
 import openpyxl
@@ -47,7 +48,7 @@ LOAI_GIO = [
     ("OCND", "Tăng ca đêm chủ nhật"),
     ("OLD", "Tăng ca đêm ngày lễ"),
 ]
-# thứ tự hiển thị các dòng giờ phụ trong bang_cham_cong
+# thứ tự hiển thị các dòng giờ phụ trong bảng chấm công tháng/tuần
 THU_TU_GIO_PHU = ["OCN", "OCND", "OL", "OLD", "L", "P"]
 
 # Thông tin chuyển khoản cuối bảng kê công nợ (theo template) – sửa tại đây nếu đổi tài khoản
@@ -58,7 +59,9 @@ THONG_TIN_CHUYEN_KHOAN = [
     "Mở tại: Ngân hàng TMCP Quân Đội - CN Hải Dương",
 ]
 TEN_LOAI = dict(LOAI_GIO)
-LOAI_CHINH = ["X", "D", "OT", "OD"]           # 4 dòng luôn có trong bang_cham_cong (như template)
+# template bang_cham_cong_tuan ghi tên loại giờ trên 1 dòng, 1 dấu cách (vd 'Tăng ca ngày 150%', 'HC đêm 130%')
+TEN_LOAI_TUAN = {k: " ".join(v.split()) for k, v in TEN_LOAI.items()}
+LOAI_CHINH = ["X", "D", "OT", "OD"]           # 4 dòng luôn có trong bảng chấm công tháng/tuần (như template)
 LOAI_TIEN = ["X", "D", "OT", "OD", "OCN", "OCND", "OL", "OLD"]
 LOAI_TANG_CA = ["D", "OD", "OCN", "OCND", "OL", "OLD"]
 
@@ -962,7 +965,7 @@ def kiem_tra_du_an(da: DuAn):
     if da.tu_ngay and da.den_ngay and (da.den_ngay - da.tu_ngay).days + 1 > 31:
         da.bao(LOI, "", "Kỳ công dài hơn 31 ngày",
                f"Kỳ {da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y} dài {(da.den_ngay - da.tu_ngay).days + 1} ngày; sheet "
-               "bang_cham_cong chỉ có 31 cột ngày nên công sau ngày thứ 31 không hiện trong lưới. Kiểm tra ngày gõ nhầm trong bảng công.")
+               "bang_cham_cong_thang chỉ có 31 cột ngày nên công sau ngày thứ 31 không hiện trong lưới. Kiểm tra ngày gõ nhầm trong bảng công.")
     if da.o_loi:
         theo_nv = defaultdict(list)
         for m, sh, cell, v in da.o_loi:
@@ -1180,10 +1183,82 @@ def _tieu_de(ws, hang, ds, nen=NEN_TD, bat_dau=1):
 
 def _o(ws, r, c, v, fmt=None, font=F_TH):
     cell = ws.cell(r, c, v)
+    # gán font/viền từng ô rất chậm ở openpyxl (băm lại style mỗi lần); chép mảng style của ô đầu tiên
+    # cùng kiểu. Mảng style trỏ vào danh sách style của workbook nên bộ đệm lưu theo từng workbook.
+    # Chỉ áp cho ô chưa có style, để không xóa nền/căn lề đã gán trước đó.
+    dem = ws.parent.__dict__.setdefault("_kieu_o", {})
+    mau = dem.get((id(font), fmt))
+    if mau is not None and not cell.has_style:
+        cell._style = copy(mau)
+        return cell
+    moi = not cell.has_style
     cell.font, cell.border = font, VIEN
     if fmt:
         cell.number_format = fmt
+    if moi:
+        dem[(id(font), fmt)] = copy(cell._style)
     return cell
+
+
+def _khoi_cham_cong(ws, r, stt, da, ngay, ky, tieu_de, cot_phu, ten_phu, gt_phu, gop=True,
+                    ten_cot_e="Tổng công ca ngày", nhan=TEN_LOAI):
+    """Ghi 1 khối chấm công theo template (hàng thứ, hàng tiêu đề có ngày, 1 hàng trống, rồi dữ liệu từ hàng 4).
+    ngay: các ngày ứng với cột G trở đi. ky=None (bảng tháng): cột F = toàn bộ giờ của NV trong kỳ;
+    ky=(từ, đến) (bảng tuần): cột F = giờ trong khối, ngày ngoài kỳ tô nhạt ở hàng tiêu đề.
+    gop: gộp ô Mã NV/Tên theo NV (template tháng có gộp, template tuần không).
+    ten_cot_e, nhan: tiêu đề cột E và tên loại giờ (template tuần ghi khác template tháng).
+    Trả về (hàng tiếp theo sau khối, stt)."""
+    cc_nv = defaultdict(dict)                    # mã NV -> {ngày: giờ theo loại}
+    for (ma, n), g in da.cham_cong.items():
+        cc_nv[ma][n] = g
+    cot_cua_ngay = {n: 7 + i for i, n in enumerate(ngay)}
+    if tieu_de:
+        ws.cell(r, 1, tieu_de).font = Font(name=FONT, bold=True, size=10, color="C00000")
+    for n, col in cot_cua_ngay.items():
+        ws.cell(r, col, THU[n.weekday()]).font = F_TH
+    r += 1
+    _tieu_de(ws, r, ["STT", "Mã theo dõi", "Mã NV", "Tên nhân viên", ten_cot_e, "TỔNG CỘNG"])
+    for n, col in cot_cua_ngay.items():
+        c = ws.cell(r, col, dt.datetime.combine(n, dt.time()))
+        c.number_format = "yyyy-mm-dd"
+        ngoai = ky and not (ky[0] <= n <= ky[1])
+        c.font, c.fill, c.alignment, c.border = F_TD, NEN_PHU if ngoai else NEN_TD, CANH_GIUA, VIEN
+    _tieu_de(ws, r, ten_phu, nen=NEN_PHU, bat_dau=cot_phu)
+    r += 2      # bỏ trống 1 hàng như template (dữ liệu bắt đầu ở hàng thứ 4 của khối)
+    da_ghi = set()
+    for d in da.luong:
+        # mã trùng: chấm công ngày chỉ ghi 1 lần (ở dòng đầu tiên) để không nhân đôi giờ
+        ngay_nv = {} if d.ma_nv in da_ghi else cc_nv.get(d.ma_nv, {})
+        da_ghi.add(d.ma_nv)
+        loai = LOAI_CHINH + [c for c in LOAI_GIO_PHU(da, d.ma_nv)]
+        stt += 1
+        r0 = r
+        for code in loai:
+            _o(ws, r, 1, stt if r == r0 else None)
+            _o(ws, r, 2, d.ma_nv, "@")
+            _o(ws, r, 3, d.ma_nv if r == r0 else None, "@")
+            _o(ws, r, 4, d.ten if r == r0 else None)
+            _o(ws, r, 5, nhan[code])
+            tong = 0
+            for n, g in (ngay_nv.items() if ky is None else ((n, ngay_nv[n]) for n in ngay if n in ngay_nv)):
+                h = g.get(code, 0)
+                if h:
+                    if n in cot_cua_ngay:
+                        _o(ws, r, cot_cua_ngay[n], h, GIO)
+                    tong += h
+            for col in cot_cua_ngay.values():
+                if ws.cell(r, col).value is None:
+                    _o(ws, r, col, None)
+            _o(ws, r, 6, tong, GIO)
+            for j, v in enumerate(gt_phu, start=cot_phu):
+                _o(ws, r, j, v, "dd/mm/yyyy" if isinstance(v, dt.date) else None)
+            r += 1
+        if gop and r - r0 > 1:
+            ws.merge_cells(start_row=r0, end_row=r - 1, start_column=3, end_column=3)
+            ws.merge_cells(start_row=r0, end_row=r - 1, start_column=4, end_column=4)
+            for c in (3, 4):
+                ws.cell(r0, c).alignment = Alignment(vertical="center", wrap_text=True)
+    return r + 2, stt      # cách 2 hàng trước khối tiếp theo
 
 
 def cot_O(d) -> float:
@@ -1241,10 +1316,10 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print, file_loi=()):
         ws.column_dimensions[col].width = w
     ws.freeze_panes = "A2"
 
-    # ================= bang_cham_cong =================
+    # ================= bang_cham_cong_thang =================
     # Mỗi hợp đồng (dự án) là 1 khối giống hệt template: hàng thứ + hàng tiêu đề có NGÀY THẬT theo đúng
     # kỳ công của bảng chấm công gốc (vd 26/07 -> 25/08), cột G = ngày đầu kỳ, H = ngày thứ 2...
-    ws = wb.create_sheet("bang_cham_cong")
+    ws = wb.create_sheet("bang_cham_cong_thang")
     r, stt = 1, 0
     for da in ds:
         ngay_ky = []
@@ -1253,56 +1328,14 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print, file_loi=()):
             while n <= da.den_ngay and len(ngay_ky) < 31:
                 ngay_ky.append(n)
                 n += dt.timedelta(days=1)
-        cot_cua_ngay = {n: 7 + i for i, n in enumerate(ngay_ky)}
-        # hàng 1 của khối: thứ (+ tên hợp đồng khi file gộp nhiều hợp đồng; file 1 hợp đồng để trống A1 như template)
+        # file 1 hợp đồng để trống A1 như template
+        tieu_de = None
         if len(ds) > 1:
-            c = ws.cell(r, 1, f"HỢP ĐỒNG: {da.ma} | Kỳ {da.ky} | "
-                              f"{da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y}" if da.tu_ngay else f"HỢP ĐỒNG: {da.ma}")
-            c.font = Font(name=FONT, bold=True, size=10, color="C00000")
-        for n, col in cot_cua_ngay.items():
-            ws.cell(r, col, THU[n.weekday()]).font = F_TH
-        r += 1
-        # hàng 2 của khối: tiêu đề
-        _tieu_de(ws, r, ["STT", "Mã theo dõi", "Mã NV", "Tên nhân viên", "Tổng công ca ngày", "TỔNG CỘNG"])
-        for n, col in cot_cua_ngay.items():
-            c = ws.cell(r, col, dt.datetime.combine(n, dt.time()))
-            c.number_format = "yyyy-mm-dd"
-            c.font, c.fill, c.alignment, c.border = F_TD, NEN_TD, CANH_GIUA, VIEN
-        _tieu_de(ws, r, ["Hợp đồng / Dự án", "Kỳ lương", "Từ ngày", "Đến ngày"], nen=NEN_PHU, bat_dau=39)
-        r += 2      # bỏ trống 1 hàng như template (dữ liệu bắt đầu ở hàng thứ 4 của khối)
-        da_ghi = set()
-        for d in da.luong:
-            # mã trùng: chấm công ngày chỉ ghi 1 lần (ở dòng đầu tiên) để không nhân đôi giờ
-            ngay_nv = {} if d.ma_nv in da_ghi else {k[1]: v for k, v in da.cham_cong.items() if k[0] == d.ma_nv}
-            da_ghi.add(d.ma_nv)
-            loai = LOAI_CHINH + [c for c in LOAI_GIO_PHU(da, d.ma_nv)]
-            stt += 1
-            r0 = r
-            for code in loai:
-                _o(ws, r, 1, stt if r == r0 else None)
-                _o(ws, r, 2, d.ma_nv, "@")
-                _o(ws, r, 3, d.ma_nv if r == r0 else None, "@")
-                _o(ws, r, 4, d.ten if r == r0 else None)
-                _o(ws, r, 5, TEN_LOAI[code])
-                tong = 0
-                for n, g in ngay_nv.items():
-                    h = g.get(code, 0)
-                    if h:
-                        if n in cot_cua_ngay:
-                            _o(ws, r, cot_cua_ngay[n], h, GIO)
-                        tong += h
-                for col in cot_cua_ngay.values():
-                    ws.cell(r, col).border = VIEN
-                _o(ws, r, 6, tong, GIO)
-                for j, v in enumerate([da.ma, da.ky, da.tu_ngay, da.den_ngay], start=39):
-                    _o(ws, r, j, v, "dd/mm/yyyy" if j >= 41 else None)
-                r += 1
-            if r - r0 > 1:
-                ws.merge_cells(start_row=r0, end_row=r - 1, start_column=3, end_column=3)
-                ws.merge_cells(start_row=r0, end_row=r - 1, start_column=4, end_column=4)
-                for c in (3, 4):
-                    ws.cell(r0, c).alignment = Alignment(vertical="center", wrap_text=True)
-        r += 2      # cách 2 hàng trước hợp đồng tiếp theo
+            tieu_de = (f"HỢP ĐỒNG: {da.ma} | Kỳ {da.ky} | {da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y}"
+                       if da.tu_ngay else f"HỢP ĐỒNG: {da.ma}")
+        r, stt = _khoi_cham_cong(ws, r, stt, da, ngay_ky, None, tieu_de, 39,
+                                 ["Hợp đồng / Dự án", "Kỳ lương", "Từ ngày", "Đến ngày"],
+                                 [da.ma, da.ky, da.tu_ngay, da.den_ngay])
     for col, w in {"A": 5, "B": 12, "C": 12, "D": 24, "E": 20, "F": 10}.items():
         ws.column_dimensions[col].width = w
     for k in range(7, 38):
@@ -1311,6 +1344,34 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print, file_loi=()):
     ws.column_dimensions["AN"].width = 10
     ws.column_dimensions["AO"].width = 11
     ws.column_dimensions["AP"].width = 11
+    ws.freeze_panes = "G1"
+
+    # ================= bang_cham_cong_tuan =================
+    # Mỗi tuần (Thứ 2 -> Chủ nhật) của kỳ công là 1 khối giống template: G = Thứ 2 ... M = Chủ nhật.
+    # Tuần đầu/cuối kỳ có thể chứa ngày ngoài kỳ: vẫn hiện ngày (tô nhạt) để cột luôn đúng thứ.
+    ws = wb.create_sheet("bang_cham_cong_tuan")
+    r, stt = 1, 0
+    for da in ds:
+        if not da.tu_ngay:
+            continue
+        dau = da.tu_ngay - dt.timedelta(days=da.tu_ngay.weekday())
+        so_tuan = 0
+        while dau <= da.den_ngay:
+            so_tuan += 1
+            tuan = [dau + dt.timedelta(days=i) for i in range(7)]
+            # file 1 hợp đồng để trống A1 như template (tuần đã thể hiện ở hàng ngày và cột O:S)
+            tieu_de = (f"HỢP ĐỒNG: {da.ma} | Kỳ {da.ky} | TUẦN {so_tuan}: {max(dau, da.tu_ngay):%d/%m/%Y} – "
+                       f"{min(tuan[-1], da.den_ngay):%d/%m/%Y}") if len(ds) > 1 else None
+            r, _ = _khoi_cham_cong(ws, r, 0, da, tuan, (da.tu_ngay, da.den_ngay), tieu_de, 15,
+                                   ["Hợp đồng / Dự án", "Kỳ lương", "Tuần", "Từ ngày", "Đến ngày"],
+                                   [da.ma, da.ky, so_tuan, tuan[0], tuan[-1]], gop=False,
+                                   ten_cot_e="Loại công", nhan=TEN_LOAI_TUAN)
+            dau += dt.timedelta(days=7)
+    for col, w in {"A": 5, "B": 12, "C": 12, "D": 24, "E": 20, "F": 10, "N": 3,
+                   "O": 9, "P": 10, "Q": 6, "R": 11, "S": 11}.items():
+        ws.column_dimensions[col].width = w
+    for k in range(7, 14):
+        ws.column_dimensions[get_column_letter(k)].width = 10.5
     ws.freeze_panes = "G1"
 
     # ================= bang_luong =================
@@ -1587,7 +1648,7 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print, file_loi=()):
 
 
 def LOAI_GIO_PHU(da: DuAn, ma_nv):
-    """Các loại giờ ngoài 4 loại chính mà NV có phát sinh (để thêm dòng trong bang_cham_cong)."""
+    """Các loại giờ ngoài 4 loại chính mà NV có phát sinh (để thêm dòng trong bảng chấm công)."""
     co = set()
     for (m, _), g in da.cham_cong.items():
         if m == ma_nv:
