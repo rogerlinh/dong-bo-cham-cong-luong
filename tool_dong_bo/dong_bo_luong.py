@@ -40,11 +40,22 @@ LOAI_GIO = [
     ("OT", "HC  đêm 130%"),
     ("OD", "Tăng ca đêm 200%"),
     ("OCN", "Tăng ca ngày chủ nhật"),
-    ("OCND", "Tăng ca đêm chủ nhật"),      # bổ sung
     ("OL", "Tăng ca ngày lễ"),
-    ("OLD", "Tăng ca đêm ngày lễ"),        # bổ sung
     ("L", "Nghỉ lễ có lương"),
     ("P", "Nghỉ phép có lương"),
+    # bổ sung (template chưa có) – để cuối để 8 dòng đầu DM đúng vị trí template
+    ("OCND", "Tăng ca đêm chủ nhật"),
+    ("OLD", "Tăng ca đêm ngày lễ"),
+]
+# thứ tự hiển thị các dòng giờ phụ trong bang_cham_cong
+THU_TU_GIO_PHU = ["OCN", "OCND", "OL", "OLD", "L", "P"]
+
+# Thông tin chuyển khoản cuối bảng kê công nợ (theo template) – sửa tại đây nếu đổi tài khoản
+THONG_TIN_CHUYEN_KHOAN = [
+    "Thông tin chuyển khoản:",
+    "Số tài khoản: 3338888798888",
+    "Tên tài khoản: Công ty TNHH nguồn nhân lực SK Việt Nam",
+    "Mở tại: Ngân hàng TMCP Quân Đội - CN Hải Dương",
 ]
 TEN_LOAI = dict(LOAI_GIO)
 LOAI_CHINH = ["X", "D", "OT", "OD"]           # 4 dòng luôn có trong bang_cham_cong (như template)
@@ -1111,7 +1122,7 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
                     nv.get("chu_tk"), nv.get("bo_phan"), nv.get("chuc_danh"), nv.get("ncc"), nv.get("ma_the"),
                     d.ngay_vao, d.ngay_nghi, da.ma]
             for j, v in enumerate(vals, start=9):
-                _o(ws, r, j, v or None, "dd/mm/yyyy" if j in (20, 21) else None)
+                _o(ws, r, j, v or None, "dd/mm/yyyy" if j in (20, 21) else ("@" if j in (9, 12, 13) else None))
             r += 1
     _tieu_de(ws, 1, ["Hợp đồng / Dự án", "Ký hiệu", "Nội dung", "Đơn giá lương", "Đơn giá dịch vụ", "Ghi chú"], bat_dau=24)
     r = 2
@@ -1141,10 +1152,11 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
                 ngay_ky.append(n)
                 n += dt.timedelta(days=1)
         cot_cua_ngay = {n: 7 + i for i, n in enumerate(ngay_ky)}
-        # hàng 1 của khối: tên hợp đồng + thứ
-        c = ws.cell(r, 1, f"HỢP ĐỒNG: {da.ma} | Kỳ {da.ky} | "
-                          f"{da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y}" if da.tu_ngay else f"HỢP ĐỒNG: {da.ma}")
-        c.font = Font(name=FONT, bold=True, size=10, color="C00000")
+        # hàng 1 của khối: thứ (+ tên hợp đồng khi file gộp nhiều hợp đồng; file 1 hợp đồng để trống A1 như template)
+        if len(ds) > 1:
+            c = ws.cell(r, 1, f"HỢP ĐỒNG: {da.ma} | Kỳ {da.ky} | "
+                              f"{da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y}" if da.tu_ngay else f"HỢP ĐỒNG: {da.ma}")
+            c.font = Font(name=FONT, bold=True, size=10, color="C00000")
         for n, col in cot_cua_ngay.items():
             ws.cell(r, col, THU[n.weekday()]).font = F_TH
         r += 1
@@ -1152,7 +1164,7 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
         _tieu_de(ws, r, ["STT", "Mã theo dõi", "Mã NV", "Tên nhân viên", "Tổng công ca ngày", "TỔNG CỘNG"])
         for n, col in cot_cua_ngay.items():
             c = ws.cell(r, col, dt.datetime.combine(n, dt.time()))
-            c.number_format = "dd/mm/yyyy"
+            c.number_format = "yyyy-mm-dd"
             c.font, c.fill, c.alignment, c.border = F_TD, NEN_TD, CANH_GIUA, VIEN
         _tieu_de(ws, r, ["Hợp đồng / Dự án", "Kỳ lương", "Từ ngày", "Đến ngày"], nen=NEN_PHU, bat_dau=39)
         r += 2      # bỏ trống 1 hàng như template (dữ liệu bắt đầu ở hàng thứ 4 của khối)
@@ -1163,8 +1175,8 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             r0 = r
             for code in loai:
                 _o(ws, r, 1, stt if r == r0 else None)
-                _o(ws, r, 2, d.ma_nv)
-                _o(ws, r, 3, d.ma_nv if r == r0 else None)
+                _o(ws, r, 2, d.ma_nv, "@")
+                _o(ws, r, 3, d.ma_nv if r == r0 else None, "@")
                 _o(ws, r, 4, d.ten if r == r0 else None)
                 _o(ws, r, 5, TEN_LOAI[code])
                 tong = 0
@@ -1242,7 +1254,7 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
                     v = round(v, 2)
                     if v.is_integer():
                         v = int(v)
-                fmt = (GIO if j in (4, 5, 6, 7, 22, 23, 24, 25, 37) else
+                fmt = ("@" if j == 2 else GIO if j in (4, 5, 6, 7, 22, 23, 24, 25, 37) else
                        ("dd/mm/yyyy" if j in (38, 39) else (SO if 8 <= j <= 36 and j not in (33, 34) else None)))
                 c = _o(ws, r, j, v, fmt)
                 if j == 36 and v not in (None, 0) and abs(v) > 1:
@@ -1286,12 +1298,14 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
         c = ws.cell(r, 1, f"BẢNG KÊ CHI TIẾT CÔNG NỢ THÁNG {da.ky.replace('T', '')} – {da.ma}")
         c.font, c.alignment = Font(name=FONT, bold=True, size=12), Alignment(horizontal="center")
         r += 1
-        ws.cell(r, 1, "Kèm theo hóa đơn .............................. ngày .../.../....").font = F_TH
+        nam = da.ky.split("/")[-1] if da.ky and "/" in da.ky else "...."
+        ws.merge_cells(start_row=r, end_row=r, start_column=1, end_column=6)
+        ws.cell(r, 1, f"Kèm theo hóa đơn .............................. ngày .../.../{nam}").font = F_TH
         r += 2
         for t in ["BÊN A:", "Địa chỉ:", "MST:", "", "BÊN B:", "Địa chỉ:", "MST:"]:
-            ws.cell(r, 1, t).font = F_TH
+            ws.cell(r, 1, t or None).font = F_TH
             r += 1
-        r += 1
+        r += 2
         _tieu_de(ws, r, ["STT", "Diễn giải", "ĐVT", "Số lượng", "Đơn giá", "Thành tiền"])
         r += 1
         dien_giai = {"X": "Lương giờ làm ban ngày ngày thường", "OT": "Lương giờ làm ban đêm ngày thường",
@@ -1316,22 +1330,27 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             ts += sl or 0
             tt += tt_ or 0
             r += 1
+        r_tong = r
         _o(ws, r, 2, "TỔNG", font=F_TD); _o(ws, r, 4, ts, GIO, F_TD); _o(ws, r, 6, round(tt), SO, F_TD); r += 1
         _o(ws, r, 2, "THUẾ VAT", font=F_TD); _o(ws, r, 6, None); r += 1
         _o(ws, r, 2, "TỔNG TIỀN THANH TOÁN", font=F_TD); _o(ws, r, 6, round(tt), SO, F_TD); r += 1
         tong_tat_ca += tt
-        if da.doanh_thu_goc is not None:
-            c = _o(ws, r, 2, "Đối chiếu: tổng theo file gốc"); _o(ws, r, 6, round(da.doanh_thu_goc), SO)
-            if abs(da.doanh_thu_goc - tt) > 1:
-                ws.cell(r, 6).fill = NEN_DO
+        ws.cell(r, 1, "Bằng chữ: " + "." * 143).font = F_TH
+        r += 2
+        for t in THONG_TIN_CHUYEN_KHOAN:
+            ws.cell(r, 1, t).font = F_TH
             r += 1
-        ws.cell(r, 2, "Ghi chú: " + da.ghi_chu_doanh_thu).font = F_GHI
-        r += 1
-        ws.cell(r, 1, "Bằng chữ: ......................................................................").font = F_TH
+        # cột bổ sung bên phải (ngoài vùng A:F của template): đối chiếu với file gốc
+        if da.doanh_thu_goc is not None:
+            _o(ws, r_tong, 8, "Đối chiếu: tổng theo file gốc", font=F_TD)
+            c = _o(ws, r_tong, 9, round(da.doanh_thu_goc), SO)
+            if abs(da.doanh_thu_goc - tt) > 1:
+                c.fill = NEN_DO
+        ws.cell(r_tong + 1, 8, "Ghi chú: " + da.ghi_chu_doanh_thu).font = F_GHI
         r += 3
     if len(ds) > 1:
         _o(ws, r, 2, "TỔNG DOANH THU TẤT CẢ DỰ ÁN", font=F_TD); _o(ws, r, 6, round(tong_tat_ca), SO, F_TD)
-    for col, w in {"A": 6, "B": 55, "C": 7, "D": 12, "E": 12, "F": 16}.items():
+    for col, w in {"A": 6, "B": 55, "C": 7, "D": 12, "E": 12, "F": 16, "H": 30, "I": 16}.items():
         ws.column_dimensions[col].width = w
 
     # ================= cham_cong_chi_tiet (dạng dọc cho phân tích) =================
@@ -1460,7 +1479,7 @@ def LOAI_GIO_PHU(da: DuAn, ma_nv):
     d = next((x for x in da.luong if x.ma_nv == ma_nv), None)
     if d:
         co |= {c for c, h in d.gio.items() if h}
-    return [c for c, _ in LOAI_GIO if c in co and c not in LOAI_CHINH]
+    return [c for c in THU_TU_GIO_PHU if c in co]
 
 
 def chay(files, out_path, log=print, tach_rieng=False):
