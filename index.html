@@ -114,6 +114,7 @@ tr.cb td{background:#FBFAF6;text-align:left;padding:14px 16px 18px;border-bottom
 .nhom .nd{display:block;color:var(--muc);overflow-wrap:anywhere}
 .canh-lon{margin:0 0 18px;padding:12px 16px;border-radius:8px;background:var(--do-nhat);color:#6E1F10;border-left:4px solid var(--do)}
 .canh-lon b{font-weight:700}
+.canh-lon ul{margin:6px 0 8px;padding-left:20px;font-size:14px}
 .tai{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0}
 .tai .nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}
 details{margin-top:28px}
@@ -237,6 +238,16 @@ worker.onmessage = ({data: m}) => {
   }
 };
 
+// worker sập (hết bộ nhớ, lỗi tải script...): không để trang treo ở trạng thái chờ
+worker.onerror = ev => {
+  ev.preventDefault();
+  const msg = "Bộ xử lý trong trình duyệt bị dừng" + (ev.message ? ": " + ev.message : "") +
+    ". Có thể file quá lớn so với bộ nhớ của trình duyệt – thử đồng bộ ít file hơn mỗi lần, hoặc dùng bản cài trên máy.";
+  $("#khoi-dong").classList.add("xong");
+  if(dangChay) ketThucChay();
+  baoLoi(msg);
+};
+
 function veFile(){
   const ul = $("#ds-file"), ds = [...files.entries()];
   if(!ds.length){ ul.innerHTML = '<li class="trong">Chưa có file nào. Kéo thả hoặc bấm "Chọn file" để thêm.</li>'; }
@@ -312,12 +323,16 @@ function veKetQua(kq, cuon = true){
   const tong = k => hd.reduce((a, x) => a + (x[k] || 0), 0);
   const tongLoi = hd.reduce((a, x) => a + demMuc(x).loi, 0);
   const tongNghi = hd.reduce((a, x) => a + demMuc(x).nghi_ngo, 0);
-  const cl = $("#canh-lon");
-  cl.hidden = !tongLoi;
+  const cl = $("#canh-lon"), fl = kq.file_loi || [];
+  cl.hidden = !tongLoi && !fl.length;
+  const phan = [];
+  if(fl.length) phan.push(`<b>${fl.length} file bị bỏ qua vì không đọc được</b>, không có trong file tổng hợp:<ul>` +
+    fl.map(f => `<li>${esc(f.ten)}: ${esc(f.loi)}</li>`).join("") + "</ul>");
   if(tongLoi){
     const ten = hd.filter(x => demMuc(x).loi).map(x => x.hop_dong).join(", ");
-    cl.innerHTML = `<b>Có ${tongLoi} lỗi cần sửa trước khi dùng file tổng hợp</b> (hợp đồng ${esc(ten)}). Bấm vào ô cảnh báo của hợp đồng để xem chi tiết.`;
+    phan.push(`<b>Có ${tongLoi} lỗi cần sửa trước khi dùng file tổng hợp</b> (hợp đồng ${esc(ten)}). Bấm vào ô cảnh báo của hợp đồng để xem chi tiết.`);
   }
+  cl.innerHTML = phan.join("<br>");
   $("#tong-ket").innerHTML = `
     <div><dt>Hợp đồng</dt><dd>${hd.length}</dd></div>
     <div><dt>Nhân viên</dt><dd>${so(tong("so_nv"))}</dd></div>

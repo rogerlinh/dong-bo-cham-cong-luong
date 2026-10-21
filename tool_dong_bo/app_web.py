@@ -68,7 +68,7 @@ def nap_mac_dinh():
             them_file(os.path.join(THU_MUC_GOC, f))
 
 
-def tom_tat(ds, outputs):
+def tom_tat(ds, outputs, file_loi=()):
     kq = []
     for da in ds:
         tn = sum(d.thuc_nhan for d in da.luong)
@@ -89,7 +89,8 @@ def tom_tat(ds, outputs):
             "doanh_thu": dthu, "doanh_thu_goc": da.doanh_thu_goc, "canh_bao": canh_bao,
             "dem": {"loi": dm[core.LOI], "nghi_ngo": dm[core.NGHI_NGO], "luu_y": dm[core.LUU_Y]},
         })
-    return {"hop_dong": kq, "files": outputs, "luc": dt.datetime.now().strftime("%H:%M %d/%m/%Y")}
+    return {"hop_dong": kq, "files": outputs, "luc": dt.datetime.now().strftime("%H:%M %d/%m/%Y"),
+            "file_loi": [{"ten": t, "loi": l} for t, l in file_loi]}
 
 
 def chay_dong_bo(tach_rieng):
@@ -100,14 +101,15 @@ def chay_dong_bo(tach_rieng):
         nguon = [f["path"] for f in files if f["mau"] and not f["loi"]]
         out = os.path.join(THU_MUC_KET_QUA, f"Tong_hop_cham_cong_luong_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx")
         truoc = set(os.listdir(THU_MUC_KET_QUA))
-        ds = core.chay(nguon, out, log=log, tach_rieng=tach_rieng)
+        file_loi = []
+        ds = core.chay(nguon, out, log=log, tach_rieng=tach_rieng, file_loi=file_loi)
         moi = sorted(set(os.listdir(THU_MUC_KET_QUA)) - truoc)
         outputs = [os.path.basename(out)] + [f for f in moi if f != os.path.basename(out)]
-        job["ket_qua"] = tom_tat(ds, outputs)
+        job["ket_qua"] = tom_tat(ds, outputs, file_loi)
     except PermissionError:
         job["loi"] = "Không ghi được file kết quả. Có thể file đang mở trong Excel – đóng lại rồi chạy lại."
     except Exception as e:
-        job["loi"] = f"{e}"
+        job["loi"] = f"{e}" or type(e).__name__
         log(traceback.format_exc())
     finally:
         job["dang_chay"] = False

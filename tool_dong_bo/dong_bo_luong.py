@@ -153,12 +153,16 @@ def so(v) -> float:
         return 0.0
     if isinstance(v, (int, float)):
         return float(v)
-    s = str(v).strip().replace("\xa0", "")
+    s = str(v).strip().replace("\xa0", "").replace(" ", "")
+    s = re.sub(r"(?i)(vnđ|vnd|đồng|đ|giờ|h)$", "", s)  # đơn vị dính sau số: 2.500.000đ, 8h
     if not s:
         return 0.0
-    if re.fullmatch(r"-?\d{1,3}(\.\d{3})+", s):        # 1.000.000
-        s = s.replace(".", "")
-    s = s.replace(",", ".")
+    if re.fullmatch(r"-?\d{1,3}(\.\d{3})+(,\d+)?", s):     # 1.000.000 / 1.000,5 (kiểu Việt)
+        s = s.replace(".", "").replace(",", ".")
+    elif re.fullmatch(r"-?\d{1,3}(,\d{3})+(\.\d+)?", s):   # 1,000,000 / 1,000.5 (kiểu Anh)
+        s = s.replace(",", "")
+    else:
+        s = s.replace(",", ".")                              # 7,5 giờ
     try:
         return float(s)
     except ValueError:
@@ -196,12 +200,15 @@ def la_ngay(v):
     if isinstance(v, dt.date):
         return v
     if isinstance(v, str):
-        m = re.match(r"\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})", v)
-        if m:
-            return dt.date(int(m[1]), int(m[2]), int(m[3]))
-        m = re.match(r"\s*(\d{1,2})/(\d{1,2})/(\d{4})", v)
-        if m:
-            return dt.date(int(m[3]), int(m[2]), int(m[1]))
+        try:
+            m = re.match(r"\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})", v)
+            if m:
+                return dt.date(int(m[1]), int(m[2]), int(m[3]))
+            m = re.match(r"\s*(\d{1,2})/(\d{1,2})/(\d{4})", v)
+            if m:
+                return dt.date(int(m[3]), int(m[2]), int(m[1]))
+        except ValueError:          # ngày không tồn tại, vd 31/02
+            return None
     return None
 
 
@@ -224,6 +231,31 @@ def doc_sheet(wb, ten, min_row=1, max_row=None, dung_khi_trong=60):
     while rows and all(v in (None, "") for v in rows[-1]):
         rows.pop()
     return rows
+
+
+def dong_trong(row, den_cot) -> bool:
+    """Dòng không có giá trị nào từ cột A đến den_cot (dòng trống / dòng ngăn cách)."""
+    return all(v is None or (isinstance(v, str) and not v.strip()) for v in row[:ci(den_cot) + 1])
+
+
+SO_DONG_TRONG_TOI_DA = 3   # bảng lương: bỏ qua tối đa 2 dòng trống liền nhau, gặp 3 dòng trống thì coi là hết bảng
+
+
+def kiem_con_sot(da, rows, tu_vi_tri, cot_ma, sheet, so_dong_dau):
+    """Sau chỗ dừng đọc bảng lương, còn mã có dạng giống mã NV đã đọc -> có thể bị bỏ sót NV."""
+    if not da.luong:
+        return
+    mau = Counter(_mau_ma(d.ma_nv) for d in da.luong).most_common(1)[0][0]
+    da_doc = {d.ma_nv for d in da.luong}
+    sot = []
+    for i, r in enumerate(rows[tu_vi_tri:tu_vi_tri + 300], start=so_dong_dau):
+        m = ma(o(r, cot_ma))
+        if m and m not in da_doc and _mau_ma(m) == mau:
+            sot.append(f"{m} (dòng {i})")
+    if sot:
+        da.bao(LOI, "", "Có thể sót NV trong bảng lương",
+               f"Tool dừng đọc '{sheet}' trước dòng {so_dong_dau}, nhưng bên dưới còn {len(sot)} mã giống mã NV: "
+               + _rut_gon(sot, 10) + ". Kiểm tra dòng trống/dòng tổng phụ chen giữa bảng.")
 
 
 def kiem_o_loi(da, ma_nv, sheet, so_dong, row, den_cot):
@@ -278,9 +310,12 @@ def ky_tu_ten_file(path):
     return (int(m[1]), int(m[2])) if m else None
 
 
-def ma_du_an_tu_file(path, mac_dinh):
+def ma_du_an_tu_file(path, mac_dinh=None):
     m = re.search(r"CTY[_ ]?([A-Za-z0-9]+)", os.path.basename(path))
-    return f"CTY {m[1].upper()}" if m else mac_dinh
+    if m:
+        return f"CTY {m[1].upper()}"
+    # không có 'CTY...' trong tên file: dùng chính tên file để 2 file khác nhau không bị gộp nhầm 1 mã
+    return os.path.splitext(os.path.basename(path))[0][:40]
 
 
 def nap_luong_kieu_khoi(da: DuAn, rows, cot_ma, cot_nhan, cot_ngay: dict, map_nhan, bat_dau=0,
@@ -345,11 +380,18 @@ def doc_mau_A(path, wb) -> DuAn:
     dg = rows[2]
     for code, col in zip(LOAI_TIEN, ["Q", "S", "R", "T", "U", "V", "W", "X"]):
         da.don_gia_luong[code] = so(o(dg, col))
+    trong = 0
     for i, r in enumerate(rows[5:], start=6):
         m = ma(o(r, "B"))
         if not m:
-            da.tong_goc = {"thuc_nhan": o(r, "AF"), "tong_luong": o(r, "AC"), "dong": i}
+            if dong_trong(r, "AF") and trong < SO_DONG_TRONG_TOI_DA - 1:
+                trong += 1
+                continue
+            if not dong_trong(r, "AF"):
+                da.tong_goc = {"thuc_nhan": o(r, "AF"), "tong_luong": o(r, "AC"), "dong": i}
+            kiem_con_sot(da, rows, i, "B", "Bảng chi lương", i + 1)
             break
+        trong = 0
         kiem_o_loi(da, m, "Bảng chi lương", i, r, "AF")
         d = DongLuong(ma_nv=m, ten=ten_sach(o(r, "C")))
         d.gio = {"X": so(o(r, "F")), "OT": so(o(r, "H")), "D": so(o(r, "J")), "OD": so(o(r, "K")),
@@ -404,12 +446,18 @@ def doc_mau_B(path, wb) -> DuAn:
     dg = rows[4]
     for code, col in zip(["X", "OT", "D", "OD", "OCN", "OCND"], ["O", "P", "Q", "R", "S", "T"]):
         da.don_gia_luong[code] = so(o(dg, col))
+    trong = 0
     for i, r in enumerate(rows[6:], start=7):
         m = ma(o(r, "C"))
+        if not m and chuan(o(r, "A")) != "tổng" and dong_trong(r, "AA") and trong < SO_DONG_TRONG_TOI_DA - 1:
+            trong += 1
+            continue
         if not m or chuan(o(r, "A")) == "tổng":
             if chuan(o(r, "A")) == "tổng":
                 da.tong_goc = {"thuc_nhan": o(r, "AA"), "tong_luong": o(r, "V"), "dong": i}
+            kiem_con_sot(da, rows, i, "C", "Bảng lương", i + 1)
             break
+        trong = 0
         kiem_o_loi(da, m, "Bảng lương", i, r, "AA")
         d = DongLuong(ma_nv=m, ten=ten_sach(o(r, "D")))
         d.gio = {"X": so(o(r, "H")), "OT": so(o(r, "I")), "D": so(o(r, "J")), "OD": so(o(r, "K")),
@@ -483,11 +531,18 @@ def doc_mau_C(path, wb) -> DuAn:
     da.don_gia_luong_khac = [{code: so(o(rows[1], col)) for code, col in
                               zip(["X", "OT", "D", "OD", "OCN", "OCND", "OL", "OLD"], "QRSTUVWX")}]
     da.ghi_chu_don_gia = "Bảng lương dùng 2 bộ đơn giá (cũ dòng 2, mới dòng 4) tùy NV; đây là bộ mới"
+    trong = 0
     for i, r in enumerate(rows[hang_td + 1:], start=hang_td + 2):
         m = ma(o(r, "B"))
         if not m:
-            da.tong_goc = {"thuc_nhan": o(r, "AL"), "dong": i}
+            if dong_trong(r, "AL") and trong < SO_DONG_TRONG_TOI_DA - 1:
+                trong += 1
+                continue
+            if not dong_trong(r, "AL"):
+                da.tong_goc = {"thuc_nhan": o(r, "AL"), "dong": i}
+            kiem_con_sot(da, rows, i - 1, "B", "Bảng lương", i + 1)
             break
+        trong = 0
         kiem_o_loi(da, m, "Bảng lương", i, r, "AL")
         d = DongLuong(ma_nv=m, ten=ten_sach(o(r, "C")))
         d.gio = {"X": so(o(r, "F")) + so(o(r, "G")), "OT": so(o(r, "H")), "D": so(o(r, "I")), "OD": so(o(r, "J")),
@@ -508,6 +563,10 @@ def doc_mau_C(path, wb) -> DuAn:
         d.tien_giu = round(so(o(r, "AH")) + so(o(r, "AI")) - so(o(r, "AJ")) - d.thuc_nhan_goc, 2)
         if ten_sach(o(r, "AN")).upper() == "PENDING":
             d.ghi_chu = (d.ghi_chu + "; PENDING").strip("; ")
+        elif abs(d.tien_giu) > 1:
+            da.bao(NGHI_NGO, m, "Tiền giữ suy ra",
+                   f"Mẫu C không có cột tiền giữ; tool suy ra {d.tien_giu:,.0f} = Tổng lương + giữ T07 − ứng − Thực nhận (AL). "
+                   "NV không PENDING mà có khoản này: kiểm tra ô Thực nhận có bị gõ đè không.")
         if ten_sach(o(r, "AM")):
             d.ghi_chu = (d.ghi_chu + "; " + ten_sach(o(r, "AM"))).strip("; ")
         d.ngay_vao, d.ngay_nghi, d.ngay_cong = la_ngay(o(r, "D")), la_ngay(o(r, "E")), so(o(r, "O"))
@@ -530,8 +589,10 @@ def doc_mau_C(path, wb) -> DuAn:
         sl, tt, kt, dg_dem = defaultdict(float), defaultdict(float), 0.0, defaultdict(lambda: defaultdict(int))
         for r in rows[1:]:
             if not ma(o(r, "B")):
-                if any("tổng" in chuan(v) for v in r if isinstance(v, str)):
-                    da.doanh_thu_goc = max(so(v) for v in r if isinstance(v, (int, float)))
+                so_trong_dong = [so(v) for v in r if isinstance(v, (int, float))]
+                if (da.doanh_thu_goc is None and so_trong_dong
+                        and any("tổng" in chuan(v) for v in r if isinstance(v, str))):
+                    da.doanh_thu_goc = max(so_trong_dong)
                 continue
             for code, ch, cg in cap:
                 h, g = so(o(r, ch)), so(o(r, cg))
@@ -589,12 +650,18 @@ def doc_mau_D(path, wb) -> DuAn:
     dg = rows[hang_td - 1]
     for code, col in zip(["X", "OT", "D", "OD", "OCN", "OCND"], "NOPQRS"):
         da.don_gia_luong[code] = so(o(dg, col))
+    trong = 0
     for i, r in enumerate(rows[hang_td + 1:], start=hang_td + 2):
         m = ma(o(r, "B"))
+        if not m and chuan(o(r, "C")) != "tổng" and dong_trong(r, "AC") and trong < SO_DONG_TRONG_TOI_DA - 1:
+            trong += 1
+            continue
         if not m or chuan(o(r, "C")) == "tổng":
             if chuan(o(r, "C")) == "tổng":
                 da.tong_goc = {"thuc_nhan": o(r, "AC"), "tong_luong": o(r, "AA"), "dong": i}
+            kiem_con_sot(da, rows, i - 1, "B", "Chi lương", i + 1)
             break
+        trong = 0
         kiem_o_loi(da, m, "Chi lương", i, r, "AC")
         d = DongLuong(ma_nv=m, ten=ten_sach(o(r, "C")))
         d.gio = {"X": so(o(r, "F")), "OT": so(o(r, "G")), "D": so(o(r, "H")), "OD": so(o(r, "I")),
@@ -651,7 +718,12 @@ def doc_mau_D(path, wb) -> DuAn:
         da.bao(LOI, "", "Thiếu chấm công ngày", "Không tìm thấy dữ liệu 'DS TỔNG' trong file")
         return da
     _, data, khoi = tot
-    nam, thang = (th[1], th[0]) if th else (dt.date.today().year, dt.date.today().month)
+    if th:
+        nam, thang = th[1], th[0]
+    else:
+        nam, thang = dt.date.today().year, dt.date.today().month
+        da.bao(LOI, "", "Không xác định được kỳ", "Tên file không có kỳ dạng 'Txx.yyyy' (vd T08.2026); mẫu D cần kỳ "
+               f"trong tên file để gán ngày cho chấm công – đang tạm dùng tháng hiện tại {thang:02d}/{nam}. Đổi tên file rồi chạy lại.")
     da.tu_ngay = dt.date(nam, thang, 1)
     da.den_ngay = dt.date(nam + thang // 12, thang % 12 + 1, 1) - dt.timedelta(days=1)
     offset_loai = {0: "X", 1: "OT", 2: "D", 3: "OD"}
@@ -705,6 +777,8 @@ def doc_mau_E(path, wb) -> DuAn:
             continue
         code = he_so.get(round(so(o(r, "F")), 2))
         if not code:
+            if so(o(r, "F")) and any(so(o(r, c)) for c in cot_ngay):
+                da.bao(NGHI_NGO, hien_tai, "Nhãn giờ lạ", f"Hệ số '{o(r, 'F')}' không thuộc bảng hệ số đã biết – bỏ qua dòng này")
             continue
         for col, ngay in cot_ngay.items():
             v = o(r, col)
@@ -782,6 +856,12 @@ def doc_file(path, log=print) -> DuAn:
         else:
             raise ValueError(f"Không nhận diện được biểu mẫu của file {os.path.basename(path)} "
                              f"(sheets: {wb.sheetnames})")
+    except ValueError:
+        raise
+    except Exception as e:      # StopIteration (không thấy dòng tiêu đề), sheet rỗng, ...
+        raise ValueError(f"File {os.path.basename(path)} nhận diện là mẫu {ten} nhưng đọc không được "
+                         f"({type(e).__name__}: {e or 'không tìm thấy dòng tiêu đề/dữ liệu'}). "
+                         "Có thể biểu mẫu đã bị đổi cấu trúc.") from e
     finally:
         wb.close()
     hoan_thien(da)
@@ -823,11 +903,11 @@ def hoan_thien(da: DuAn):
         if d.ma_nv not in co_cong:
             if sum(gio_cc_can.values()) > 0.01:
                 da.bao(NGHI_NGO, d.ma_nv, "Không có chấm công ngày", "Có giờ trong bảng lương nhưng không có chấm công ngày")
-            continue
-        lech = [f"{TEN_LOAI[c].replace(chr(10), ' ')}: công {tong_cc[d.ma_nv].get(c, 0):g} / lương {d.gio.get(c, 0):g}"
-                for c in LOAI_TIEN if abs(tong_cc[d.ma_nv].get(c, 0) - gio_cc_can[c]) > 0.01]
-        if lech:
-            da.bao(NGHI_NGO, d.ma_nv, "Lệch giờ công/lương", "; ".join(lech))
+        elif dem[d.ma_nv] == 1:        # trùng mã đã báo lỗi riêng, không so giờ 2 lần
+            lech = [f"{TEN_LOAI[c].replace(chr(10), ' ')}: công {tong_cc[d.ma_nv].get(c, 0):g} / lương {d.gio.get(c, 0):g}"
+                    for c in LOAI_TIEN if abs(tong_cc[d.ma_nv].get(c, 0) - gio_cc_can[c]) > 0.01]
+            if lech:
+                da.bao(NGHI_NGO, d.ma_nv, "Lệch giờ công/lương", "; ".join(lech))
         cl = d.thuc_nhan - (d.thuc_nhan_goc or 0)
         if d.thuc_nhan_goc is not None and abs(cl) > 1:
             da.bao(LOI, d.ma_nv, "Lệch thực nhận", f"Tính lại {d.thuc_nhan:,.0f} / file gốc {d.thuc_nhan_goc:,.0f}")
@@ -872,6 +952,17 @@ def kiem_tra_du_an(da: DuAn):
     if th and da.tu_ngay and da.den_ngay and th[0] not in (da.tu_ngay.month, da.den_ngay.month):
         da.bao(NGHI_NGO, "", "Kỳ lương không khớp", f"Tên file ghi T{th[0]:02d}/{th[1]} nhưng bảng công là "
                f"{da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y}")
+    if da.luong:
+        co_gio = sum(sum(d.gio.values()) for d in da.luong)
+        co_thuc_nhan = sum(abs(d.thuc_nhan_goc or 0) for d in da.luong)
+        if co_gio > 0 and co_thuc_nhan == 0:
+            da.bao(LOI, "", "Không có giá trị tiền",
+                   "Có giờ công nhưng cột Thực nhận của file gốc trống ở mọi NV. Thường do file được tạo/lưu bằng công cụ không tính công "
+                   "thức (giá trị chưa được lưu). Mở file bằng Excel, bấm Lưu, rồi chạy lại.")
+    if da.tu_ngay and da.den_ngay and (da.den_ngay - da.tu_ngay).days + 1 > 31:
+        da.bao(LOI, "", "Kỳ công dài hơn 31 ngày",
+               f"Kỳ {da.tu_ngay:%d/%m/%Y} – {da.den_ngay:%d/%m/%Y} dài {(da.den_ngay - da.tu_ngay).days + 1} ngày; sheet "
+               "bang_cham_cong chỉ có 31 cột ngày nên công sau ngày thứ 31 không hiện trong lưới. Kiểm tra ngày gõ nhầm trong bảng công.")
     if da.o_loi:
         theo_nv = defaultdict(list)
         for m, sh, cell, v in da.o_loi:
@@ -931,7 +1022,7 @@ def kiem_tra_du_an(da: DuAn):
         if d.thuc_nhan < -NGUONG["sai_so_tien"]:
             da.bao(NGHI_NGO, m, "Thực nhận âm", f"Thực nhận {d.thuc_nhan:,.0f} (ứng/khấu trừ lớn hơn lương)")
         for ten_k, v in [("Ứng lương", d.ung_luong), ("Trừ đồ", d.tru_do), ("Bảo hiểm", d.bhxh),
-                         ("Khấu trừ khác", d.khau_tru_khac)]:
+                         ("Khấu trừ khác", d.khau_tru_khac), ("Tiền giữ", d.tien_giu)]:
             if v < 0:
                 da.bao(NGHI_NGO, m, "Khoản trừ âm", f"{ten_k} = {v:,.0f} (khoản trừ mang dấu âm)")
         for c in LOAI_TIEN:
@@ -967,7 +1058,7 @@ def kiem_tra_du_an(da: DuAn):
         if m not in ten_nv:
             continue
         tong = sum(g.values())
-        if da.tu_ngay and not (da.tu_ngay <= ngay <= da.den_ngay):
+        if da.tu_ngay and tong and (not (da.tu_ngay <= ngay <= da.den_ngay) or (ngay - da.tu_ngay).days >= 31):
             ngoai_ky[m].append(ngay)
         if tong > NGUONG["gio_ngay_nghi_ngo"]:
             qua_gio[m].append((ngay, tong))
@@ -978,7 +1069,8 @@ def kiem_tra_du_an(da: DuAn):
         if co_tang_ca_cn and ngay.weekday() == 6 and any(g.get(c) for c in ("X", "OT", "D", "OD")):
             hc_cn[m].append(ngay)
     for m, ds in ngoai_ky.items():
-        da.bao(LOI, m, "Công ngoài kỳ", f"{len(ds)} ngày có công nằm ngoài kỳ: " + _rut_gon(f"{n:%d/%m}" for n in sorted(ds)))
+        da.bao(LOI, m, "Công ngoài kỳ", f"{len(ds)} ngày có công nằm ngoài kỳ / ngoài 31 cột ngày: "
+               + _rut_gon(f"{n:%d/%m/%Y}" for n in sorted(ds)))
     for m, ds in qua_gio.items():
         nang = [x for x in ds if x[1] > NGUONG["gio_ngay_loi"]]
         da.bao(LOI if nang else NGHI_NGO, m, "Giờ làm trong ngày quá cao",
@@ -1104,7 +1196,7 @@ def cot_R(d) -> float:
     return d.tru_do + d.bhxh + d.khau_tru_khac
 
 
-def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
+def ghi_file_chuan(ds: list[DuAn], out_path, log=print, file_loi=()):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     mot_ky = len({(d.tu_ngay, d.den_ngay) for d in ds}) == 1
@@ -1178,8 +1270,11 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
             c.font, c.fill, c.alignment, c.border = F_TD, NEN_TD, CANH_GIUA, VIEN
         _tieu_de(ws, r, ["Hợp đồng / Dự án", "Kỳ lương", "Từ ngày", "Đến ngày"], nen=NEN_PHU, bat_dau=39)
         r += 2      # bỏ trống 1 hàng như template (dữ liệu bắt đầu ở hàng thứ 4 của khối)
+        da_ghi = set()
         for d in da.luong:
-            ngay_nv = {k[1]: v for k, v in da.cham_cong.items() if k[0] == d.ma_nv}
+            # mã trùng: chấm công ngày chỉ ghi 1 lần (ở dòng đầu tiên) để không nhân đôi giờ
+            ngay_nv = {} if d.ma_nv in da_ghi else {k[1]: v for k, v in da.cham_cong.items() if k[0] == d.ma_nv}
+            da_ghi.add(d.ma_nv)
             loai = LOAI_CHINH + [c for c in LOAI_GIO_PHU(da, d.ma_nv)]
             stt += 1
             r0 = r
@@ -1447,6 +1542,14 @@ def ghi_file_chuan(ds: list[DuAn], out_path, log=print):
                 ws.cell(r, a).fill = ws.cell(r, b).fill = NEN_DO
         r += 1
     r += 2
+    if file_loi:
+        ws.cell(r, 1, "FILE BỊ BỎ QUA (không đọc được)").font = Font(name=FONT, bold=True, size=11, color="C00000")
+        r += 1
+        for ten, l in file_loi:
+            c = _o(ws, r, 1, "Lỗi"); c.fill = NEN_MUC[LOI]
+            _o(ws, r, 2, ten); _o(ws, r, 6, l)
+            r += 1
+        r += 1
     ws.cell(r, 1, "DANH SÁCH CẢNH BÁO").font = Font(name=FONT, bold=True, size=11)
     r += 1
     for muc, giai_thich in [(LOI, "sai chắc chắn hoặc số liệu không tin được – phải sửa file gốc trước khi dùng"),
@@ -1495,25 +1598,45 @@ def LOAI_GIO_PHU(da: DuAn, ma_nv):
     return [c for c in THU_TU_GIO_PHU if c in co]
 
 
-def chay(files, out_path, log=print, tach_rieng=False):
+def chay(files, out_path, log=print, tach_rieng=False, file_loi=None):
+    """file_loi: list (tùy chọn) nhận các (tên file, lỗi) bị bỏ qua."""
     ds = []
+    file_loi = [] if file_loi is None else file_loi
     for f in files:
         log(f"Đọc: {os.path.basename(f)}")
-        da = doc_file(f, log)
+        try:
+            da = doc_file(f, log)
+        except Exception as e:
+            file_loi.append((os.path.basename(f), str(e)))
+            log(f"  !! BỎ QUA file này: {e}")
+            continue
         dm = dem_muc(da)
         log(f"  {da.ma} | {da.ky} | {len(da.luong)} NV | thực nhận {sum(d.thuc_nhan for d in da.luong):,.0f}"
             f" (gốc {sum(d.thuc_nhan_goc or 0 for d in da.luong):,.0f}) | "
             f"{dm[LOI]} lỗi, {dm[NGHI_NGO]} nghi ngờ, {dm[LUU_Y]} lưu ý")
         ds.append(da)
+    if not ds:
+        raise ValueError("Không đọc được file nào: " + "; ".join(f"{t}: {l}" for t, l in file_loi))
+    # 2 file cùng mã hợp đồng -> đổi tên để không ghi đè / gộp nhầm
+    dem_ma = Counter(da.ma for da in ds)
+    for da in ds:
+        if dem_ma[da.ma] > 1:
+            cu = da.ma
+            da.ma = f"{cu} ({os.path.splitext(os.path.basename(da.file))[0][:30]})"
+            da.bao(NGHI_NGO, "", "Trùng mã hợp đồng", f"Nhiều file cùng mã '{cu}' – đã đổi thành '{da.ma}'. "
+                   "Kiểm tra có tải trùng file, hoặc đặt tên file chứa 'CTY_<mã>'.")
     ds.sort(key=lambda d: d.ma)
     kiem_tra_cheo(ds)
     tong = {k: sum(dem_muc(da)[k] for da in ds) for k in (LOI, NGHI_NGO, LUU_Y)}
     log(f"Kiểm tra: {tong[LOI]} lỗi, {tong[NGHI_NGO]} nghi ngờ, {tong[LUU_Y]} lưu ý (chi tiết ở sheet kiem_tra)")
-    ghi_file_chuan(ds, out_path, log)
+    if file_loi:
+        log(f"Bỏ qua {len(file_loi)} file lỗi: " + ", ".join(t for t, _ in file_loi))
+    ghi_file_chuan(ds, out_path, log, file_loi)
     if tach_rieng:
         goc, _ = os.path.splitext(out_path)
         for da in ds:
-            ghi_file_chuan([da], f"{goc}_{da.ma.replace(' ', '_')}_{da.ky.replace('/', '-')}.xlsx", log)
+            ten = re.sub(r'[\\/:*?"<>|() ]+', "_", da.ma).strip("_")
+            ghi_file_chuan([da], f"{goc}_{ten}_{da.ky.replace('/', '-')}.xlsx", log)
     return ds
 
 

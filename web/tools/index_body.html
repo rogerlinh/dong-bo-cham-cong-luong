@@ -1,0 +1,163 @@
+</style>
+</head>
+<body>
+<div class="khung">
+  <header>
+    <div>
+      <h1>Đồng bộ chấm công và lương</h1>
+      <p class="phu-de">Gộp bảng công, bảng lương của từng hợp đồng về một file Excel theo cấu trúc chuẩn, rồi đối chiếu lại với file gốc.</p>
+      <p class="rieng-tu">Chạy ngay trong trình duyệt. File của bạn được xử lý trên máy này, không tải lên máy chủ nào.</p>
+    </div>
+    <a class="nut" href="https://github.com/rogerlinh/dong-bo-cham-cong-luong">Mã nguồn</a>
+  </header>
+
+  <div class="khoi-dong" id="khoi-dong" aria-live="polite"><span class="vong" aria-hidden="true"></span><span id="khoi-dong-chu">Đang tải bộ xử lý (lần đầu khoảng 20 MB, các lần sau nhanh hơn)…</span></div>
+  <div class="thong-bao" id="thong-bao" role="alert"></div>
+
+  <section aria-labelledby="t-file">
+    <h2 id="t-file">File nguồn</h2>
+    <div class="tha" id="tha">
+      <p><strong>Kéo thả file .xlsx vào đây</strong>, mỗi file là bảng công/lương của một hợp đồng. Biểu mẫu được nhận diện tự động.</p>
+      <div>
+        <input type="file" id="chon-file" accept=".xlsx" multiple hidden>
+        <button type="button" id="nut-chon">Chọn file</button>
+        <button type="button" class="nhe" id="nut-xoa-het">Bỏ tất cả</button>
+      </div>
+    </div>
+    <ul class="ds-file" id="ds-file" aria-live="polite"></ul>
+  </section>
+
+  <div class="hang-chay">
+    <div class="chon">
+      <input type="checkbox" id="tach-rieng">
+      <label for="tach-rieng">Xuất thêm mỗi hợp đồng một file riêng</label>
+    </div>
+    <div class="tien-trinh" id="tien-trinh" aria-live="polite"><span class="vong" aria-hidden="true"></span><span id="dong-log">Đang đồng bộ…</span></div>
+    <button class="chinh" id="nut-chay" type="button" disabled>Đồng bộ</button>
+  </div>
+
+  <section id="ket-qua" aria-labelledby="t-kq">
+    <h2 id="t-kq">Kết quả đối chiếu</h2>
+    <dl class="tong-ket" id="tong-ket"></dl>
+    <div class="canh-lon" id="canh-lon" role="status" hidden></div>
+    <div class="bang">
+      <table>
+        <thead><tr>
+          <th scope="col">Hợp đồng</th><th scope="col">Kỳ công</th><th scope="col">Nhân viên</th>
+          <th scope="col">Tổng lương</th><th scope="col">Thực nhận<div class="nho">file tổng / file gốc</div></th>
+          <th scope="col">Doanh thu<div class="nho">file tổng / file gốc</div></th><th scope="col">Cảnh báo</th><th scope="col"><span class="vh">Đối chiếu</span></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="chu-thich">Con dấu "Khớp" nghĩa là thực nhận tính lại từ các cột trong file tổng bằng đúng thực nhận của file gốc, xét từng nhân viên.
+      Cảnh báo chia 3 mức: <b>Lỗi</b> là số liệu sai chắc chắn, cần sửa file gốc; <b>Nghi ngờ</b> là bất thường cần người xem lại; <b>Lưu ý</b> chỉ để biết.
+      Danh sách đầy đủ nằm ở sheet <i>kiem_tra</i> của file tổng hợp, và cột cuối sheet <i>bang_luong</i> đánh dấu từng nhân viên.</p>
+    <div class="tai" id="tai"></div>
+    <details>
+      <summary>Nhật ký chạy</summary>
+      <pre id="log"></pre>
+    </details>
+  </section>
+  <p class="chu-thich">Biểu mẫu đang hỗ trợ: A, B, C, D, E. File khác mẫu sẽ được báo và bỏ qua. Xem <a class="lk" href="https://github.com/rogerlinh/dong-bo-cham-cong-luong/blob/main/tool_dong_bo/HUONG_DAN.md">hướng dẫn</a>.</p>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const so = v => (v === null || v === undefined) ? "–" : Math.round(v).toLocaleString("vi-VN");
+const mb = b => (b / 1048576).toLocaleString("vi-VN", {maximumFractionDigits: 1}) + " MB";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function baoLoi(msg){ const t=$("#thong-bao"); t.textContent=msg; t.classList.toggle("hien", !!msg); }
+
+// ---- bộ xử lý Python chạy trong Web Worker
+const worker = new Worker("web/worker.js");
+const files = new Map();          // ten -> {kich_thuoc, tt (null = đang nhận diện)}
+let sanSang = false, dangChay = false, log = [], urls = [];
+
+worker.onmessage = ({data: m}) => {
+  if(m.type === "tien_do") $("#khoi-dong-chu").textContent = m.msg;
+  else if(m.type === "san_sang"){ sanSang = true; $("#khoi-dong").classList.add("xong"); veFile(); }
+  else if(m.type === "loi_khoi_dong"){
+    $("#khoi-dong").classList.add("xong");
+    baoLoi("Không tải được bộ xử lý: " + m.msg + ". Kiểm tra kết nối mạng rồi tải lại trang.");
+  }
+  else if(m.type === "da_quet"){ if(files.has(m.ten)){ files.get(m.ten).tt = m.tt; veFile(); } }
+  else if(m.type === "log"){
+    log.push(m.msg); $("#log").textContent = log.join("\n");
+    const cuoi = m.msg.trim(); if(cuoi) $("#dong-log").textContent = cuoi.slice(0, 90);
+  }
+  else if(m.type === "xong"){
+    ketThucChay();
+    urls.forEach(u => URL.revokeObjectURL(u));
+    const mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    urls = m.files.map(f => URL.createObjectURL(new Blob([f.buf], {type: mime})));
+    veKetQua(m.kq);
+  }
+  else if(m.type === "loi"){
+    if(dangChay){ ketThucChay(); baoLoi("Đồng bộ không thành công: " + m.msg); log.push(m.chi_tiet); $("#log").textContent = log.join("\n"); }
+    else if(m.ten && files.has(m.ten)){ files.get(m.ten).tt = {loi: "Không mở được file: " + m.msg}; veFile(); }
+  }
+};
+
+// worker sập (hết bộ nhớ, lỗi tải script...): không để trang treo ở trạng thái chờ
+worker.onerror = ev => {
+  ev.preventDefault();
+  const msg = "Bộ xử lý trong trình duyệt bị dừng" + (ev.message ? ": " + ev.message : "") +
+    ". Có thể file quá lớn so với bộ nhớ của trình duyệt – thử đồng bộ ít file hơn mỗi lần, hoặc dùng bản cài trên máy.";
+  $("#khoi-dong").classList.add("xong");
+  if(dangChay) ketThucChay();
+  baoLoi(msg);
+};
+
+function veFile(){
+  const ul = $("#ds-file"), ds = [...files.entries()];
+  if(!ds.length){ ul.innerHTML = '<li class="trong">Chưa có file nào. Kéo thả hoặc bấm "Chọn file" để thêm.</li>'; }
+  else ul.innerHTML = ds.map(([ten, f]) => {
+    const tt = f.tt;
+    const the = !tt ? '<span class="the">Đang nhận diện…</span>'
+      : tt.loi ? `<span class="the loi" title="${esc(tt.loi)}">${tt.mau ? "Lỗi" : "Không nhận diện được"}</span>`
+      : `<span class="the">Mẫu ${esc(tt.mau)}${tt.ky ? ", " + esc(tt.ky) : ""}</span>`;
+    return `<li>
+      <span class="ma-hd">${esc(tt && tt.hop_dong || "")}</span>
+      <span class="ten-file" title="${esc(ten)}">${esc(ten)}</span>
+      ${the}
+      <span class="nho">${mb(f.kich_thuoc)}</span>
+      <button class="nhe" type="button" data-xoa="${esc(ten)}" aria-label="Bỏ ${esc(ten)}">Bỏ</button>
+    </li>`;
+  }).join("");
+  const doc = ds.filter(([, f]) => f.tt && f.tt.mau && !f.tt.loi).length;
+  $("#nut-chay").textContent = !sanSang ? "Đang tải bộ xử lý…" : doc ? `Đồng bộ ${doc} file` : "Đồng bộ";
+  $("#nut-chay").disabled = !sanSang || !doc || dangChay;
+}
+
+async function taiLen(fileList){
+  baoLoi("");
+  for(const f of fileList){
+    if(!f.name.toLowerCase().endsWith(".xlsx")){ baoLoi(`"${f.name}" không phải file .xlsx nên đã bỏ qua.`); continue; }
+    const ten = f.name.replace(/[\/\\]/g, "_");
+    files.set(ten, {kich_thuoc: f.size, tt: null});
+    veFile();
+    const buf = await f.arrayBuffer();
+    worker.postMessage({type: "them", ten, buf}, [buf]);
+  }
+}
+
+const tha = $("#tha");
+["dragenter","dragover"].forEach(e => tha.addEventListener(e, ev => { ev.preventDefault(); tha.classList.add("dang-keo"); }));
+["dragleave","drop"].forEach(e => tha.addEventListener(e, ev => { ev.preventDefault(); tha.classList.remove("dang-keo"); }));
+tha.addEventListener("drop", ev => taiLen(ev.dataTransfer.files));
+$("#nut-chon").onclick = () => $("#chon-file").click();
+$("#chon-file").onchange = ev => { taiLen(ev.target.files); ev.target.value = ""; };
+$("#nut-xoa-het").onclick = () => { for(const ten of files.keys()) worker.postMessage({type: "bo", ten}); files.clear(); veFile(); };
+$("#ds-file").onclick = ev => { const t = ev.target.dataset.xoa; if(t){ files.delete(t); worker.postMessage({type: "bo", ten: t}); veFile(); } };
+
+function ketThucChay(){ dangChay = false; $("#tien-trinh").classList.remove("hien"); veFile(); }
+
+$("#nut-chay").onclick = () => {
+  baoLoi(""); log = []; $("#log").textContent = "";
+  const ten = [...files.entries()].filter(([, f]) => f.tt && f.tt.mau && !f.tt.loi).map(([t]) => t);
+  dangChay = true; veFile();
+  $("#dong-log").textContent = "Đang đồng bộ…"; $("#tien-trinh").classList.add("hien");
+  worker.postMessage({type: "chay", ten, tach_rieng: $("#tach-rieng").checked});
+};
+

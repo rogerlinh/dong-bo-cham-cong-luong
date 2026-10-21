@@ -50,11 +50,15 @@ Mỗi lần đồng bộ, tool tự soát số liệu và chia cảnh báo làm 
 
 | Nhóm | Lỗi | Nghi ngờ | Lưu ý |
 |---|---|---|---|
-| File và cấu trúc | Ô lỗi công thức (`#REF!`, `#N/A`, `#VALUE!`…), được tính là 0. Bảng lương trống. Không tìm thấy chấm công ngày. Dòng TỔNG của file gốc khác tổng các dòng. | Kỳ ghi trong file khác kỳ ở tên file. Nhãn loại giờ lạ. | Hợp đồng khác kỳ với các hợp đồng còn lại (có thể chọn nhầm file tháng khác). Nguồn chấm công đặc biệt (D). |
-| Nhân viên | Trùng mã NV trong một bảng lương. Thiếu họ tên. Ngày nghỉ trước ngày vào. | Mã khác dạng các mã còn lại (vd `HMT 140` thừa khoảng trắng). Cùng tên và cùng ngày vào nhưng khác mã. Cùng mã ở 2 hợp đồng. Cùng số tài khoản cho 2 NV khác nhau. Ngày vào sau kỳ công. | NV có công nhưng không có trong bảng lương. |
+| File và cấu trúc | Ô lỗi công thức (`#REF!`, `#N/A`, `#VALUE!`…), được tính là 0. Bảng lương trống. Không tìm thấy chấm công ngày. Dòng TỔNG của file gốc khác tổng các dòng. **Có thể sót NV** (dừng đọc bảng lương mà bên dưới vẫn còn mã giống mã NV). **Không có giá trị tiền** (file lưu bằng công cụ không tính công thức). **Kỳ công dài hơn 31 ngày.** **Không xác định được kỳ** (mẫu D, tên file thiếu `Txx.yyyy`). | Kỳ ghi trong file khác kỳ ở tên file. Nhãn loại giờ / hệ số lạ. Trùng mã hợp đồng (2 file cùng mã, tool tự đổi tên). | Hợp đồng khác kỳ với các hợp đồng còn lại (có thể chọn nhầm file tháng khác). Nguồn chấm công đặc biệt (D). |
+| Nhân viên | Trùng mã NV trong một bảng lương. Thiếu họ tên. Ngày nghỉ trước ngày vào. | Mã khác dạng các mã còn lại (vd `HMT 140` thừa khoảng trắng). Cùng tên và cùng ngày vào nhưng khác mã. Cùng mã ở 2 hợp đồng. Cùng số tài khoản cho 2 NV khác nhau. Ngày vào sau kỳ công. **Tiền giữ suy ra** (mẫu C, NV không PENDING mà có tiền giữ: ô Thực nhận có thể bị gõ đè). | NV có công nhưng không có trong bảng lương. |
 | Giờ và tiền | Có tiền mà không có giờ. Tiền ≠ giờ × đơn giá (so với mọi bộ đơn giá của hợp đồng). Giờ hoặc tiền âm. Lương/giờ dưới tối thiểu vùng IV. Ngày công vượt số ngày của kỳ. Thực nhận tính lại khác file gốc. | Có giờ mà tiền bằng 0. Giờ bảng lương khác tổng chấm công ngày. Thực nhận âm. Khoản trừ âm. | Lương/giờ dưới tối thiểu vùng I. Tổng tăng ca trên 40 giờ/kỳ. |
-| Chấm công ngày | Công ghi vào ngày ngoài kỳ. Một ngày quá 24 giờ. | Một ngày quá 16 giờ. Có công sau ngày nghỉ việc hoặc trước ngày vào. Giờ thường ghi vào Chủ nhật, khi hợp đồng có đơn giá riêng cho Chủ nhật. NV có giờ lương nhưng không có chấm công ngày. | |
+| Chấm công ngày | Công ghi vào ngày ngoài kỳ hoặc ngoài 31 cột ngày. Một ngày quá 24 giờ. | Một ngày quá 16 giờ. Có công sau ngày nghỉ việc hoặc trước ngày vào. Giờ thường ghi vào Chủ nhật, khi hợp đồng có đơn giá riêng cho Chủ nhật. NV có giờ lương nhưng không có chấm công ngày. | |
 | Doanh thu | Doanh thu tính lại khác bảng kê gốc. | Doanh thu thấp hơn quỹ lương. | Thiếu đơn giá dịch vụ cho loại giờ có phát sinh. |
+
+**File không đọc được** (không đúng mẫu nào, hoặc đúng tên sheet nhưng cấu trúc đã đổi) không làm hỏng cả lượt: tool bỏ qua file đó, báo rõ lý do trên giao diện và liệt kê ở đầu danh sách cảnh báo trong sheet `kiem_tra`.
+
+**Dòng trống trong bảng lương:** tool bỏ qua tối đa 2 dòng trống liền nhau; gặp 3 dòng trống liền thì coi là hết bảng (và báo lỗi nếu bên dưới vẫn còn mã NV).
 
 **Ngưỡng:** sửa trong `NGUONG` ở đầu `dong_bo_luong.py`.
 - Nghi ngờ khi một ngày quá 16 giờ; lỗi khi quá 24 giờ.

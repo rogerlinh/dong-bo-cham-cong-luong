@@ -1,7 +1,9 @@
 // Chạy lõi Python (tool_dong_bo/dong_bo_luong.py) ngay trong trình duyệt bằng Pyodide.
 // File người dùng chỉ nằm trong bộ nhớ của tab này, không gửi lên máy chủ nào.
 const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.27.2/full/";
-importScripts(PYODIDE + "pyodide.js");
+let loiTai = null;
+try{ importScripts(PYODIDE + "pyodide.js"); }
+catch(e){ loiTai = "không tải được Pyodide từ " + PYODIDE + " (mạng chặn CDN?)"; }
 
 const GLUE = `
 import sys, os, json, shutil, datetime as dt
@@ -21,13 +23,15 @@ def chay_tat_ca(ten_json, tach, log):
     os.makedirs(RA)
     out = os.path.join(RA, f"Tong_hop_cham_cong_luong_{dt.datetime.now():%Y%m%d_%H%M%S}.xlsx")
     paths = [os.path.join(VAO, t) for t in json.loads(ten_json)]
-    ds = core.chay(paths, out, log=lambda s: log(str(s)), tach_rieng=bool(tach))
+    file_loi = []
+    ds = core.chay(paths, out, log=lambda s: log(str(s)), tach_rieng=bool(tach), file_loi=file_loi)
     files = [os.path.basename(out)] + sorted(f for f in os.listdir(RA) if f != os.path.basename(out))
-    return json.dumps(app_web.tom_tat(ds, files), default=str, ensure_ascii=False)
+    return json.dumps(app_web.tom_tat(ds, files, file_loi), default=str, ensure_ascii=False)
 `;
 
 let py;
 const sanSang = (async () => {
+  if(loiTai) throw new Error(loiTai);
   py = await loadPyodide({indexURL: PYODIDE});
   postMessage({type: "tien_do", msg: "Đang tải thư viện đọc Excel…"});
   await py.loadPackage(["micropip"]);
