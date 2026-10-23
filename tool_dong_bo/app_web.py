@@ -71,22 +71,25 @@ def nap_mac_dinh():
 def tom_tat(ds, outputs, file_loi=()):
     kq = []
     for da in ds:
-        tn = sum(d.thuc_nhan for d in da.luong)
-        goc = sum(d.thuc_nhan_goc or 0 for d in da.luong)
-        ten = {d.ma_nv: d.ten for d in da.luong}
-        canh_bao = [{"muc": muc, "ma": m, "ten": ten.get(m, ""), "loai": l, "noi_dung": n}
+        canh_bao = [{"muc": muc, "ma": m, "ten": da.nv[m].ten if m in da.nv else "", "loai": l, "noi_dung": n}
                     for muc, m, l, n in da.van_de]
         dm = core.dem_muc(da)
-        dthu = core.doanh_thu_tinh(da)
+        tong = da.tong_gio_nv()
+        dc = core.doi_chieu(da)
         kq.append({
-            "hop_dong": da.ma, "file": os.path.basename(da.file), "mau": da.mau, "ky": da.ky,
+            "hop_dong": da.ma, "file": os.path.basename(da.file), "mau": da.mau, "ky": da.ky, "nguon_cc": da.nguon_cc,
             "tu": da.tu_ngay.strftime("%d/%m/%Y") if da.tu_ngay else "",
             "den": da.den_ngay.strftime("%d/%m/%Y") if da.den_ngay else "",
-            "so_nv": len(da.luong), "tong_gio": sum(sum(d.gio.values()) for d in da.luong),
-            "tong_luong": sum(d.tong_luong for d in da.luong), "thuc_nhan": tn, "thuc_nhan_goc": goc,
-            "lech": tn - goc, "so_nv_lech": sum(1 for d in da.luong if d.thuc_nhan_goc is not None
-                                                and abs(d.thuc_nhan - d.thuc_nhan_goc) > 1),
-            "doanh_thu": dthu, "doanh_thu_goc": da.doanh_thu_goc, "canh_bao": canh_bao,
+            "so_nv": len(da.nv), "so_nv_co_cong": sum(1 for g in tong.values() if sum(g.values()) > 0),
+            "tong_gio": sum(sum(g.get(c, 0) for c in core.LOAI_LAM) for g in tong.values()),
+            "so_tuan": len({n - dt.timedelta(days=n.weekday()) for n in
+                            (da.tu_ngay + dt.timedelta(days=i) for i in range((da.den_ngay - da.tu_ngay).days + 1))})
+                       if da.tu_ngay and da.den_ngay else 0,
+            "doi_chieu": None if dc is None else {
+                "nguon": dc["nguon"], "gio_bk": dc["gio_bk"], "khop": dc["khop"],
+                "so_nv_lech": len(dc["nv_lech"]) + len(dc["chi_cong"]) + len(dc["chi_bk"]),
+                "loai_lech": len(dc["loai_lech"])},
+            "canh_bao": canh_bao,
             "dem": {"loi": dm[core.LOI], "nghi_ngo": dm[core.NGHI_NGO], "luu_y": dm[core.LUU_Y]},
         })
     return {"hop_dong": kq, "files": outputs, "luc": dt.datetime.now().strftime("%H:%M %d/%m/%Y"),

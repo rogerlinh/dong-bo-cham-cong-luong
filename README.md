@@ -1,6 +1,8 @@
-# Đồng bộ chấm công và lương
+# Đồng bộ chấm công
 
-Tool gộp bảng chấm công và bảng lương của nhiều hợp đồng về **một file Excel cấu trúc chuẩn**. Mỗi hợp đồng có thể dùng một biểu mẫu khác nhau. Sau khi gộp, tool đối chiếu lại với file gốc và cảnh báo khi số liệu sai hoặc đáng nghi.
+Tool đọc bảng chấm công của nhiều doanh nghiệp, mỗi nơi một biểu mẫu, và dựng 2 tab **`bang_cham_cong_thang`** và **`bang_cham_cong_tuan`** theo đúng template. Sau đó tool đối chiếu giờ công với bảng kê của từng file và cảnh báo khi số liệu sai hoặc đáng nghi.
+
+Tool **chỉ đọc bảng chấm công và bảng kê, không đọc bảng lương**. Bảng lương trong file gốc là bản đã tổng hợp; template tự tạo lại `bang_luong` và `doanh_thu` từ 2 tab chấm công.
 
 ## Dùng ngay trên web, không cần cài
 
@@ -19,8 +21,8 @@ Mở **<https://rogerlinh.github.io/dong-bo-cham-cong-luong/>** rồi kéo thả
    - **macOS / Linux:** chạy `sh tool_dong_bo/chay_app.sh`.
 
    Lần đầu chạy, tool tự cài thư viện `openpyxl`. Trình duyệt sẽ tự mở `http://127.0.0.1:8765`.
-4. Kéo thả các file `.xlsx` bảng công/lương vào trang, rồi bấm **Đồng bộ**.
-5. Xem bảng đối chiếu và cảnh báo, rồi bấm **Tải file tổng hợp**. File kết quả cũng được lưu trong thư mục `ket_qua/`.
+4. Kéo thả các file `.xlsx` của từng doanh nghiệp vào trang, rồi bấm **Đồng bộ**.
+5. Xem kết quả đối chiếu với bảng kê và cảnh báo, rồi bấm **Tải file tổng hợp**. File kết quả cũng được lưu trong thư mục `ket_qua/`.
 
 Đóng cửa sổ console là tắt tool.
 
@@ -28,7 +30,7 @@ Mẹo: chép các file `.xlsx` vào thư mục gốc của source, tức là c�
 
 ## Biểu mẫu hỗ trợ
 
-Tool hiện đọc được 5 biểu mẫu, gọi là **A, B, C, D, E**, và nhận diện mẫu theo tên sheet trong file. Mã hợp đồng và kỳ lương được lấy từ tên file, ví dụ `Bảng_chi_lương_CTY_A_T09.2026.xlsx`.
+Tool hiện đọc được 5 biểu mẫu, gọi là **A, B, C, D, E**, và nhận diện mẫu theo tên sheet trong file. Mã hợp đồng và kỳ công được lấy từ tên file, ví dụ `Bảng_chi_lương_CTY_A_T09.2026.xlsx`.
 
 Nếu file không thuộc mẫu nào, giao diện báo *Không nhận diện được biểu mẫu* và bỏ qua file đó. Muốn thêm mẫu mới, hãy viết thêm hàm `nhan_dien_X` và `doc_mau_X` trong `tool_dong_bo/dong_bo_luong.py`, rồi khai báo hàm vào `ADAPTERS`.
 
@@ -38,7 +40,7 @@ Chi tiết cấu trúc file kết quả, cách đọc từng mẫu và danh sác
 
 | File | Vai trò |
 |---|---|
-| `tool_dong_bo/dong_bo_luong.py` | Lõi xử lý: đọc 5 biểu mẫu, kiểm tra cảnh báo, ghi file chuẩn. Có thể chạy bằng dòng lệnh. |
+| `tool_dong_bo/dong_bo_luong.py` | Lõi xử lý: đọc bảng chấm công và bảng kê của 5 biểu mẫu, kiểm tra cảnh báo, ghi file chuẩn. Có thể chạy bằng dòng lệnh. |
 | `tool_dong_bo/app_web.py` | Máy chủ web nội bộ (chỉ dùng thư viện chuẩn của Python) |
 | `tool_dong_bo/giao_dien.html` | Giao diện |
 | `tool_dong_bo/app_dong_bo.py` | Cửa sổ tkinter đơn giản, dự phòng |

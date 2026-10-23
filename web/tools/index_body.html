@@ -4,8 +4,8 @@
 <div class="khung">
   <header>
     <div>
-      <h1>Đồng bộ chấm công và lương</h1>
-      <p class="phu-de">Gộp bảng công, bảng lương của từng hợp đồng về một file Excel theo cấu trúc chuẩn, rồi đối chiếu lại với file gốc.</p>
+      <h1>Đồng bộ chấm công</h1>
+      <p class="phu-de">Gộp bảng chấm công của từng hợp đồng về hai tab chuẩn <i>bang_cham_cong_thang</i> và <i>bang_cham_cong_tuan</i>, rồi đối chiếu giờ với bảng kê của file gốc. Tool không đọc bảng lương.</p>
       <p class="rieng-tu">Chạy ngay trong trình duyệt. File của bạn được xử lý trên máy này, không tải lên máy chủ nào.</p>
     </div>
     <a class="nut" href="https://github.com/rogerlinh/dong-bo-cham-cong-luong">Mã nguồn</a>
@@ -17,7 +17,7 @@
   <section aria-labelledby="t-file">
     <h2 id="t-file">File nguồn</h2>
     <div class="tha" id="tha">
-      <p><strong>Kéo thả file .xlsx vào đây</strong>, mỗi file là bảng công/lương của một hợp đồng. Biểu mẫu được nhận diện tự động.</p>
+      <p><strong>Kéo thả file .xlsx vào đây</strong>, mỗi file là bảng chấm công của một hợp đồng. Biểu mẫu được nhận diện tự động.</p>
       <div>
         <input type="file" id="chon-file" accept=".xlsx" multiple hidden>
         <button type="button" id="nut-chon">Chọn file</button>
@@ -44,15 +44,15 @@
       <table>
         <thead><tr>
           <th scope="col">Hợp đồng</th><th scope="col">Kỳ công</th><th scope="col">Nhân viên</th>
-          <th scope="col">Tổng lương</th><th scope="col">Thực nhận<div class="nho">file tổng / file gốc</div></th>
-          <th scope="col">Doanh thu<div class="nho">file tổng / file gốc</div></th><th scope="col">Cảnh báo</th><th scope="col"><span class="vh">Đối chiếu</span></th>
+          <th scope="col">Giờ công<div class="nho">chấm công / bảng kê</div></th><th scope="col">Nguồn<div class="nho">tab chấm công / tab đối chiếu</div></th>
+          <th scope="col">Số tuần</th><th scope="col">Cảnh báo</th><th scope="col"><span class="vh">Đối chiếu bảng kê</span></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <p class="chu-thich">Con dấu "Khớp" nghĩa là thực nhận tính lại từ các cột trong file tổng bằng đúng thực nhận của file gốc, xét từng nhân viên.
+    <p class="chu-thich">Con dấu "Khớp" nghĩa là giờ trong tab chấm công bằng đúng giờ của bảng kê, xét từng nhân viên và từng loại giờ (mẫu A: tổng theo loại giờ). "Lệch" kèm số NV lệch; "Không có bảng kê" là file không có tab để đối chiếu.
       Cảnh báo chia 3 mức: <b>Lỗi</b> là số liệu sai chắc chắn, cần sửa file gốc; <b>Nghi ngờ</b> là bất thường cần người xem lại; <b>Lưu ý</b> chỉ để biết.
-      Danh sách đầy đủ nằm ở sheet <i>kiem_tra</i> của file tổng hợp, và cột cuối sheet <i>bang_luong</i> đánh dấu từng nhân viên.</p>
+      Danh sách đầy đủ nằm ở sheet <i>kiem_tra</i> của file tổng hợp.</p>
     <div class="tai" id="tai"></div>
     <details>
       <summary>Nhật ký chạy</summary>

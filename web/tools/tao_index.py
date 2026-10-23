@@ -4,8 +4,8 @@ import os
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 g = open("tool_dong_bo/giao_dien.html", encoding="utf8").read()
 head = g[:g.index("</style>")]
-head = head.replace("<title>Đồng bộ chấm công lương</title>",
-                    "<title>Đồng bộ chấm công lương</title>\n<meta name=\"description\" content=\"Gộp bảng chấm công, bảng lương nhiều biểu mẫu về một file Excel chuẩn. Chạy ngay trong trình duyệt.\">")
+head = head.replace("<title>Đồng bộ chấm công</title>",
+                    "<title>Đồng bộ chấm công</title>\n<meta name=\"description\" content=\"Gộp bảng chấm công nhiều biểu mẫu về 2 tab chấm công tháng và tuần theo template, đối chiếu với bảng kê. Chạy ngay trong trình duyệt.\">")
 head += """
 .khoi-dong{display:flex;gap:10px;align-items:center;margin:0 0 20px;color:var(--muc-nhat);font-size:14px}
 .khoi-dong.xong{display:none}
