@@ -76,12 +76,18 @@ def tom_tat(ds, outputs, file_loi=()):
         dm = core.dem_muc(da)
         tong = da.tong_gio_nv()
         dc = core.doi_chieu(da)
+        ns = core.doi_chieu_nm_sk(da)
+        gio_sk = sum(sum(g.get(c, 0) for c in core.LOAI_LAM) for g in tong.values())
         kq.append({
             "hop_dong": da.ma, "file": os.path.basename(da.file), "mau": da.mau, "ky": da.ky, "nguon_cc": da.nguon_cc,
+            "hai_bang": da.hai_bang, "nguon_nm": da.nguon_nm if da.hai_bang else da.nguon_cc,
+            "theo": "Tuần" if da.theo_tuan else "Tháng",
             "tu": da.tu_ngay.strftime("%d/%m/%Y") if da.tu_ngay else "",
             "den": da.den_ngay.strftime("%d/%m/%Y") if da.den_ngay else "",
             "so_nv": len(da.nv), "so_nv_co_cong": sum(1 for g in tong.values() if sum(g.values()) > 0),
-            "tong_gio": sum(sum(g.get(c, 0) for c in core.LOAI_LAM) for g in tong.values()),
+            "tong_gio": gio_sk, "gio_sk": gio_sk, "gio_nm": ns["gio_nm"] if ns else gio_sk,
+            "nm_sk": None if ns is None else {
+                "khop": ns["khop"], "so_nv_lech": len(ns["nv_lech"]) + len(ns["chi_nm"]) + len(ns["chi_sk"])},
             "so_tuan": len({n - dt.timedelta(days=n.weekday()) for n in
                             (da.tu_ngay + dt.timedelta(days=i) for i in range((da.den_ngay - da.tu_ngay).days + 1))})
                        if da.tu_ngay and da.den_ngay else 0,

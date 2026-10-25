@@ -88,6 +88,12 @@ tr.hd:last-of-type td{border-bottom:0}
 .dau.khop{color:var(--xanh)}
 .dau.lech{color:var(--do)}
 .dau.khong{color:var(--muc-nhat);border-style:dashed}
+.hai-dau > div{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+td.cot-bc,th:nth-child(4){text-align:left}
+.bc{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:10px;align-items:baseline;min-width:170px;max-width:240px}
+.bc .nho{grid-column:1/-1;line-height:1.2}
+.bc + .bc{margin-top:8px}
+.bc .ten-tab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dau.moi{animation:dong-dau .35s cubic-bezier(.2,1.6,.4,1) both}
 @keyframes dong-dau{from{transform:rotate(-7deg) scale(1.9);opacity:0}to{transform:rotate(-7deg) scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.dau.moi{animation:none}.vong{animation-duration:3s}}
@@ -145,7 +151,7 @@ a.lk{color:var(--muc);font-weight:600}
   <header>
     <div>
       <h1>Đồng bộ chấm công</h1>
-      <p class="phu-de">Gộp bảng chấm công của từng hợp đồng về hai tab chuẩn <i>bang_cham_cong_thang</i> và <i>bang_cham_cong_tuan</i>, rồi đối chiếu giờ với bảng kê của file gốc. Tool không đọc bảng lương.</p>
+      <p class="phu-de">Tách bảng chấm công của từng hợp đồng thành công <b>nhà máy</b> (tính doanh thu) và công <b>SK</b> (tính chi phí trả người lao động), mỗi loại một tab tháng và một tab tuần theo template. Hợp đồng chấm công theo tháng vào tab tháng, theo tuần vào tab tuần; hợp đồng chỉ có một bảng công thì dùng chung cho cả nhà máy và SK. Tool không đọc bảng lương.</p>
       <p class="rieng-tu">Chạy ngay trong trình duyệt. File của bạn được xử lý trên máy này, không tải lên máy chủ nào.</p>
     </div>
     <a class="nut" href="https://github.com/rogerlinh/dong-bo-cham-cong-luong">Mã nguồn</a>
@@ -184,13 +190,14 @@ a.lk{color:var(--muc);font-weight:600}
       <table>
         <thead><tr>
           <th scope="col">Hợp đồng</th><th scope="col">Kỳ công</th><th scope="col">Nhân viên</th>
-          <th scope="col">Giờ công<div class="nho">chấm công / bảng kê</div></th><th scope="col">Nguồn<div class="nho">tab chấm công / tab đối chiếu</div></th>
-          <th scope="col">Số tuần</th><th scope="col">Cảnh báo</th><th scope="col"><span class="vh">Đối chiếu bảng kê</span></th>
+          <th scope="col">Bảng công<div class="nho">tab nguồn · giờ công</div></th>
+          <th scope="col">Bảng kê<div class="nho">giờ, so với công nhà máy</div></th>
+          <th scope="col">Cảnh báo</th><th scope="col">Đối chiếu<div class="nho">nhà máy / SK · bảng kê</div></th>
         </tr></thead>
         <tbody id="tbody"></tbody>
       </table>
     </div>
-    <p class="chu-thich">Con dấu "Khớp" nghĩa là giờ trong tab chấm công bằng đúng giờ của bảng kê, xét từng nhân viên và từng loại giờ (mẫu A: tổng theo loại giờ). "Lệch" kèm số NV lệch; "Không có bảng kê" là file không có tab để đối chiếu.
+    <p class="chu-thich">Con dấu thứ nhất so công nhà máy với công SK, con dấu thứ hai so công nhà máy với bảng kê; cả hai xét từng nhân viên và từng loại giờ (bảng kê mẫu A: tổng theo loại giờ). "Lệch" kèm số NV lệch. "1 bảng công" là hợp đồng chỉ có một bảng công, dùng chung cho nhà máy và SK. Mỗi hợp đồng có thêm một tab riêng trong file tổng hợp, ô công SK khác công nhà máy được tô đỏ.
       Cảnh báo chia 3 mức: <b>Lỗi</b> là số liệu sai chắc chắn, cần sửa file gốc; <b>Nghi ngờ</b> là bất thường cần người xem lại; <b>Lưu ý</b> chỉ để biết.
       Danh sách đầy đủ nằm ở sheet <i>kiem_tra</i> của file tổng hợp.</p>
     <div class="tai" id="tai"></div>
@@ -337,27 +344,32 @@ function veKetQua(kq, cuon = true){
   $("#tong-ket").innerHTML = `
     <div><dt>Hợp đồng</dt><dd>${hd.length}</dd></div>
     <div><dt>Nhân viên</dt><dd>${so(tong("so_nv"))}</dd></div>
-    <div><dt>Giờ công</dt><dd>${so(tong("tong_gio"))}</dd></div>
+    <div><dt>Giờ nhà máy / SK</dt><dd>${so(tong("gio_nm"))} / ${so(tong("gio_sk"))}</dd></div>
+    <div><dt>Khớp nhà máy / SK</dt><dd>${hd.filter(x => x.nm_sk && x.nm_sk.khop).length} / ${hd.filter(x => x.nm_sk).length}</dd></div>
     <div><dt>Khớp bảng kê</dt><dd>${hd.filter(x => x.doi_chieu && x.doi_chieu.khop).length} / ${hd.filter(x => x.doi_chieu).length}</dd></div>
     <div><dt>Lỗi / nghi ngờ</dt><dd><span style="color:${tongLoi ? "var(--do)" : "inherit"}">${tongLoi}</span> / <span style="color:${tongNghi ? "var(--vang)" : "inherit"}">${tongNghi}</span></dd></div>`;
   $("#tbody").innerHTML = hd.map((x, i) => {
-    const dc = x.doi_chieu, khop = dc && dc.khop;
+    const dc = x.doi_chieu, khop = dc && dc.khop, ns = x.nm_sk;
     const cb = x.canh_bao.length;
-    const bk = dc ? `<div class="so-goc" title="Theo ${esc(dc.nguon)}">${so(dc.gio_bk)}</div>` : '<div class="so-goc">không có bảng kê</div>';
-    const dau = !dc ? '<span class="dau khong">–<small>không có bảng kê</small></span>'
-      : `<span class="dau moi ${khop ? "khop" : "lech"}" style="animation-delay:${i * 120}ms">${khop ? "KHỚP" : "LỆCH"}<small>${khop ? "bảng kê" : dc.so_nv_lech ? dc.so_nv_lech + " NV" : dc.loai_lech + " loại giờ"}</small></span>`;
+    const bk = dc ? `<div class="so">${so(dc.gio_bk)}</div><div class="nho">${esc(dc.nguon)}</div>` : '<div class="nho">không có bảng kê</div>';
+    const bang = x.hai_bang
+      ? `<div class="bc"><span class="nho">Nhà máy</span><span class="ten-tab" title="${esc(x.nguon_nm)}">${esc(x.nguon_nm)}</span><b class="so">${so(x.gio_nm)}</b></div><div class="bc"><span class="nho">SK</span><span class="ten-tab" title="${esc(x.nguon_cc)}">${esc(x.nguon_cc)}</span><b class="so">${so(x.gio_sk)}</b></div>`
+      : `<div class="bc"><span class="nho">Dùng chung</span><span class="ten-tab" title="${esc(x.nguon_cc)}">${esc(x.nguon_cc)}</span><b class="so">${so(x.gio_sk)}</b></div>`;
+    const dau1 = !ns ? '<span class="dau khong">–<small>1 bảng công</small></span>'
+      : `<span class="dau moi ${ns.khop ? "khop" : "lech"}" style="animation-delay:${i * 120}ms">${ns.khop ? "KHỚP" : "LỆCH"}<small>${ns.khop ? "nhà máy / SK" : ns.so_nv_lech + " NV"}</small></span>`;
+    const dau2 = !dc ? '<span class="dau khong">–<small>không có bảng kê</small></span>'
+      : `<span class="dau moi ${khop ? "khop" : "lech"}" style="animation-delay:${i * 120 + 60}ms">${khop ? "KHỚP" : "LỆCH"}<small>${khop ? "bảng kê" : dc.so_nv_lech ? dc.so_nv_lech + " NV" : dc.loai_lech + " loại giờ"}</small></span>`;
     return `
     <tr class="hd">
       <td><div class="hd-ten">${esc(x.hop_dong)}</div><div class="hd-mau" title="${esc(x.mau)}">${esc(x.mau.replace(/ \(.*/, ""))}</div></td>
-      <td>${esc(x.ky)}<div class="nho">${esc(x.tu)} – ${esc(x.den)}</div></td>
+      <td>${esc(x.ky)}<div class="nho">${esc(x.tu)} – ${esc(x.den)}</div><div class="nho">${x.theo === "Tuần" ? "Chấm công theo tuần · tab tuần" : "Chấm công theo tháng · tab tháng"}</div></td>
       <td class="so">${so(x.so_nv)}<div class="nho">${so(x.so_nv_co_cong)} có công</div></td>
-      <td><div class="so">${so(x.tong_gio)}</div>${bk}</td>
-      <td>${esc(x.nguon_cc)}<div class="nho">${dc ? esc(dc.nguon) : "–"}</div></td>
-      <td class="so">${x.so_tuan}</td>
+      <td class="cot-bc">${bang}</td>
+      <td>${bk}</td>
       <td>${cb ? `<button type="button" class="mo-cb" aria-expanded="false" aria-controls="cb-${i}" data-cb="${i}" title="Xem ${cb} cảnh báo">${chipMuc(demMuc(x))}</button>` : '<span class="mo-cb khong">Không có</span>'}</td>
-      <td>${dau}</td>
+      <td class="hai-dau"><div>${dau1}${dau2}</div></td>
     </tr>
-    <tr class="cb" id="cb-${i}" hidden><td colspan="8">${veCanhBao(x.canh_bao, "")}</td></tr>`;
+    <tr class="cb" id="cb-${i}" hidden><td colspan="7">${veCanhBao(x.canh_bao, "")}</td></tr>`;
   }).join("");
   $("#tai").innerHTML = kq.files.map((f, i) =>
     `<a class="nut ${i === 0 ? "chinh" : ""}" href="${urls[i]}" download="${esc(f)}">${i === 0 ? "Tải file tổng hợp" : "Tải " + esc(f.replace(/^Tong_hop_cham_cong_luong_\d+_\d+_?/, "").replace(".xlsx", "") || f)}</a>`).join("");

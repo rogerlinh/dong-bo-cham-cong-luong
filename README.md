@@ -1,8 +1,10 @@
 # Đồng bộ chấm công
 
-Tool đọc bảng chấm công của nhiều doanh nghiệp, mỗi nơi một biểu mẫu, và dựng 2 tab **`bang_cham_cong_thang`** và **`bang_cham_cong_tuan`** theo đúng template. Sau đó tool đối chiếu giờ công với bảng kê của từng file và cảnh báo khi số liệu sai hoặc đáng nghi.
+Tool đọc bảng chấm công của nhiều doanh nghiệp, mỗi nơi một biểu mẫu, và tách thành **công nhà máy** (tính doanh thu SK thu của nhà máy) và **công SK** (tính chi phí trả người lao động). Mỗi loại có một tab tháng và một tab tuần theo đúng template: `bang_cham_cong_thang_nha_may`, `bang_cham_cong_tuan_nha_may`, `bang_cham_cong_thang_SK`, `bang_cham_cong_tuan_SK`. Tool tự nhận biết dự án chấm công theo tháng hay theo tuần (kỳ công không quá 7 ngày) và chỉ nạp vào 2 tab tương ứng. Dự án chỉ có một bảng công thì bảng đó dùng chung cho cả nhà máy và SK.
 
-Tool **chỉ đọc bảng chấm công và bảng kê, không đọc bảng lương**. Bảng lương trong file gốc là bản đã tổng hợp; template tự tạo lại `bang_luong` và `doanh_thu` từ 2 tab chấm công.
+File tổng hợp có thêm một tab cho mỗi dự án để đối chiếu với file gốc. Tool so công nhà máy với công SK, so công nhà máy với bảng kê, và cảnh báo khi số liệu sai hoặc đáng nghi.
+
+Tool **chỉ đọc bảng chấm công và bảng kê, không đọc bảng lương**. Bảng lương trong file gốc là bản đã tổng hợp; `bang_luong` (từ công SK) và `doanh_thu` (từ công nhà máy) được tính ở bước sau.
 
 ## Dùng ngay trên web, không cần cài
 
