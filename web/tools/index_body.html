@@ -133,7 +133,8 @@ function veFile(){
 
 async function taiLen(fileList){
   baoLoi("");
-  for(const f of fileList){
+  // Chép ra mảng trước khi await: FileList của ô chọn file bị xóa ngay sau onchange (value = "")
+  for(const f of [...fileList]){
     if(!f.name.toLowerCase().endsWith(".xlsx")){ baoLoi(`"${f.name}" không phải file .xlsx nên đã bỏ qua.`); continue; }
     const ten = f.name.replace(/[\/\\]/g, "_");
     files.set(ten, {kich_thuoc: f.size, tt: null});
