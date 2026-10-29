@@ -60,7 +60,7 @@ Mẫu được nhận diện theo tên sheet, không theo tên file. Mã hợp �
 | D | sheet có `明细` | cache liên kết ngoài `DS TỔNG` có sẵn trong file (dùng chung); chỉ lấy NV có trong 明细 | như nhà máy | `…明细`: giờ từng NV, đơn giá; cũng là danh sách NV |
 | E | `Công (lương)` | `Công (lương)`: số liệu chết trích từ phần mềm chấm công nhà máy | `Công`: SK dùng công thức SUMIFS trên dữ liệu gốc `DL công` để kiểm tra lại công nhà máy | không có |
 
-Mẫu E ghi giờ theo hệ số: 1.0 = HC ngày, 1.3 = HC đêm, 1.5 = TC ngày, 2.0 = TC ngày CN, 2.3 = TC đêm CN, 3.0 = TC đêm, 3.3 = TC đêm lễ. Riêng hệ số 2.0 thì dữ liệu gốc dùng cho cả TC đêm ngày thường lẫn làm ngày nghỉ, nên cách gán này cần người phụ trách hợp đồng xác nhận.
+Mẫu E ghi giờ theo hệ số: 1.0 = HC ngày, 1.3 = HC đêm, 1.5 = TC ngày, 2.0 = TC ngày CN, 2.3 = TC đêm CN, 3.0 = TC đêm, 3.3 = TC đêm lễ. Riêng hệ số 2.0 thì dữ liệu gốc dùng cho cả TC đêm ngày thường lẫn làm ngày nghỉ, nên cách gán này cần người phụ trách hợp đồng xác nhận. Cách gán này khớp đúng các cột của 'Bảng lương' mẫu E. Trong file tổng hợp, số dòng loại giờ của mỗi NV giống file gốc: mẫu E 7 dòng, mẫu B 6 dòng (dòng không có giờ ghi 0); mẫu A, C, D giữ 4 dòng chính như template, thêm dòng CN/lễ khi NV có giờ. Bảng kê '明细' của mẫu D cộng cả cột thử việc (V, X) với cột chính thức (W, Y) khi đối chiếu TC ngày / TC đêm.
 
 **Bảng công thứ 2 chỉ được dùng khi cùng kỳ.** Tool so ngày và mã NV của bảng công thứ 2 với bảng công chính. Nếu phần lớn ngày nằm ngoài kỳ, hoặc không có NV chung, tool bỏ qua bảng đó và ghi lưu ý *Bỏ qua bảng công khác kỳ*. Với 5 file mẫu:
 - **A:** `DL chấm công` và `DL chấm công (2)` là dữ liệu 01–30/06/2026, trong khi file là kỳ T09.

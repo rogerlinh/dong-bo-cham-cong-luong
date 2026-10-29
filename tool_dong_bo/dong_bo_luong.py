@@ -120,6 +120,7 @@ class DuAn:
     bang_ke_tong: dict | None = None   # code -> h: bảng kê chỉ có tổng theo loại giờ
     van_de: list = field(default_factory=list)         # [(muc, ma_nv, loai, noi_dung)]
     o_loi: list = field(default_factory=list)          # [(ma_nv, sheet, ô, giá trị lỗi)]
+    loai_mau: list = field(default_factory=list)       # loại giờ bảng công gốc luôn có dòng riêng cho mỗi NV
 
     def bao(self, muc, ma_nv, loai, noi_dung):
         """Ghi 1 cảnh báo. muc: LOI (sai chắc chắn) / NGHI_NGO (cần kiểm tra) / LUU_Y (thông tin)."""
@@ -321,7 +322,7 @@ def hang_co_nhieu_ngay(rows, so_dong=15, tu_cot=0):
 
 def doc_bang_ke_theo_nv(wb, sheet, hang_dau, cot_ma, cot_gio: dict, cot_don_gia: dict | None = None,
                         dung_khi=None):
-    """Bảng kê dạng 1 dòng/NV. cot_gio: {code: cột giờ}; cot_don_gia: {code: cột đơn giá (lấy giá phổ biến)}.
+    """Bảng kê dạng 1 dòng/NV. cot_gio: {code: cột giờ, hoặc tuple các cột cộng dồn}; cot_don_gia: {code: cột đơn giá (lấy giá phổ biến)}.
     Trả về ({mã: {code: giờ}}, {mã: dòng}, {code: đơn giá})."""
     gio, dong, dem_gia = {}, {}, defaultdict(Counter)
     for r in doc_sheet(wb, sheet)[hang_dau - 1:]:
@@ -332,7 +333,7 @@ def doc_bang_ke_theo_nv(wb, sheet, hang_dau, cot_ma, cot_gio: dict, cot_don_gia:
             continue
         g = gio.setdefault(m, defaultdict(float))
         for code, col in cot_gio.items():
-            g[code] += so(o(r, col))
+            g[code] += sum(so(o(r, c)) for c in (col if isinstance(col, tuple) else (col,)))
         dong.setdefault(m, r)
         for code, col in (cot_don_gia or {}).items():
             if so(o(r, col)):
@@ -427,7 +428,7 @@ def nhan_dien_B(sheets):
 
 def doc_mau_B(path, wb) -> DuAn:
     da = DuAn(ma=ma_du_an_tu_file(path, "Dự án B"), file=path, mau="Mẫu B (1 bảng công: Bảng công SK; đối chiếu Tính phí)",
-              nguon_cc="Bảng công SK")
+              nguon_cc="Bảng công SK", loai_mau=["X", "OT", "D", "OD", "OCN", "OCND"])   # mỗi NV 6 dòng như file gốc
     rows = doc_sheet(wb, "Bảng công SK")
     hang_ngay, cot_ngay = hang_co_nhieu_ngay(rows, 10, ci("I"))
     map_nhan = {"ca ngày": "X", "ca đêm": "OT", "tăng ca ngày": "D", "tăng ca đêm": "OD",
@@ -581,7 +582,8 @@ def doc_mau_D(path, wb) -> DuAn:
     mx = next((s for s in wb.sheetnames if "明细" in s and "(" not in s), None) or \
         next(s for s in wb.sheetnames if "明细" in s)
     loai = ["X", "OT", "D", "OD", "OCN", "OCND", "OL", "OLD"]
-    da.bang_ke, dong, _ = doc_bang_ke_theo_nv(wb, mx, 5, "B", dict(zip(loai, ["T", "U", "W", "Y", "Z", "AB", "AD", "AE"])))
+    # TC ngày / TC đêm có cột thử việc (V 'TGTV 1.5', X 'TV 215%') và chính thức (W, Y) -> cộng cả hai
+    da.bang_ke, dong, _ = doc_bang_ke_theo_nv(wb, mx, 5, "B", dict(zip(loai, ["T", "U", ("V", "W"), ("X", "Y"), "Z", "AB", "AD", "AE"])))
     for m, r in dong.items():
         them_nv(da, m, ten=ten_sach(o(r, "C")), bo_phan=" / ".join(x for x in (ten_sach(o(r, "E")), ten_sach(o(r, "G"))) if x),
                 chuc_danh=ten_sach(o(r, "I")), ncc=ten_sach(o(r, "N")), ngay_vao=la_ngay(o(r, "J")))
@@ -691,7 +693,8 @@ def doc_mau_E(path, wb) -> DuAn:
     # 'Công (lương)' = công nhà máy: số liệu chết trích từ phần mềm chấm công nhà máy.
     # 'Công' = công SK: SK dùng công thức SUMIFS trên dữ liệu gốc 'DL công' để kiểm tra lại công nhà máy.
     da = DuAn(ma=ma_du_an_tu_file(path, "Dự án E"), file=path,
-              mau="Mẫu E (nhà máy: Công (lương); SK: Công)", nguon_cc="Công")
+              mau="Mẫu E (nhà máy: Công (lương); SK: Công)", nguon_cc="Công",
+              loai_mau=list(HE_SO_E.values()))     # mỗi NV 7 dòng hệ số như file gốc
     rows = doc_sheet(wb, "Công (lương)")
     cot_ngay, dau = _doc_cong_he_so(da, rows, "Công (lương)", da.moi_bang_nm("Công (lương)"))
     da.tu_ngay, da.den_ngay = min(cot_ngay.values()), max(cot_ngay.values())
@@ -1090,7 +1093,7 @@ def _khoi_cham_cong(ws, r, stt, da, ngay, ky, tieu_de, cot_phu, ten_phu, gt_phu,
         ngay_nv = cc_nv.get(nv.ma_nv, {})
         ngay_khac = khac_nv.get(nv.ma_nv, {})
         co = {c for d in (ngay_nv, ngay_khac) for g in d.values() for c, h in g.items() if h}
-        loai = LOAI_CHINH + [c for c in THU_TU_GIO_PHU if c in co]
+        loai = LOAI_CHINH + [c for c in THU_TU_GIO_PHU if c in co or c in da.loai_mau]
         stt += 1
         r0 = r
         for code in loai:
